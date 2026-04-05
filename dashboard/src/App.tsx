@@ -10,6 +10,7 @@ import { X, LayoutGrid, FolderOpen, Monitor, Loader2, Settings, ArrowUpCircle } 
 import { isDesktop, getDesktopVersion } from './lib/tauri';
 import { AgentGuideButton } from './components/AgentGuide';
 import { CloseTabModal } from './components/CloseTabModal';
+import { ThemeToggle, useTheme } from './components/ThemeToggle';
 import { SettingsModal } from './components/SettingsModal';
 import { ActiveTerminals } from './components/ActiveTerminals';
 import { GlobalMicButton } from './components/GlobalMicButton';
@@ -200,6 +201,7 @@ function Dashboard() {
   ).length;
   const [showActiveTerminals, setShowActiveTerminals] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const dismissActiveTerminals = useCallback(() => {
     setShowActiveTerminals(false);
@@ -473,6 +475,7 @@ function Dashboard() {
               )}
             </div>
           )}
+          <ThemeToggle theme={theme} setTheme={setTheme} />
           <button
             onClick={() => setShowSettings(true)}
             className="p-1.5 rounded-md transition-colors hover:opacity-80"
