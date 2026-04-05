@@ -10,6 +10,7 @@ import { isDesktop, isElectron, getDesktopVersion } from './lib/tauri';
 import { AgentGuideButton } from './components/AgentGuide';
 import { CloseTabModal } from './components/CloseTabModal';
 import { CloseAppModal } from './components/CloseAppModal';
+import { ThemeToggle, useTheme } from './components/ThemeToggle';
 import { SettingsModal } from './components/SettingsModal';
 import { ActiveTerminals } from './components/ActiveTerminals';
 import { GlobalMicButton } from './components/GlobalMicButton';
@@ -195,6 +196,7 @@ function Dashboard() {
     });
     return () => unlisten?.();
   }, []);
+  const { theme, setTheme } = useTheme();
 
   const dismissActiveTerminals = useCallback(() => {
     setShowActiveTerminals(false);
@@ -501,6 +503,7 @@ function Dashboard() {
           <GlobalMicButton />
           <GlobalDictationButton />
           <AgentGuideButton />
+          <ThemeToggle theme={theme} setTheme={setTheme} />
           <button
             onClick={() => setShowSettings(true)}
             className="p-1.5 rounded-md transition-colors hover:opacity-80"
