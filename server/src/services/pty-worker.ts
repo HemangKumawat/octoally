@@ -135,7 +135,7 @@ async function tmuxCreate(
   const envCmd = 'env';
   const envArgs = ['-u', 'NODE_ENV', '-u', 'PORT', '-u', 'OCTOALLY_API_PORT', '-u', 'OCTOALLY_DASH_PORT'];
   const runArgs = command
-    ? [envCmd, ...envArgs, shell, '-i', '-c', command]
+    ? [envCmd, ...envArgs, shell, '-i', '-c', `${command}; exec ${shell} -i`]
     : [envCmd, ...envArgs, shell, '-i'];
 
   await execFileAsync('tmux', [
@@ -201,7 +201,7 @@ async function dtachCreate(sessionId: string, projectPath: string, command: stri
   }
   const shell = process.env.SHELL || '/bin/bash';
   await execFileAsync('dtach', [
-    '-n', sock, '-Ez', shell, '-i', '-c', command,
+    '-n', sock, '-Ez', shell, '-i', '-c', `${command}; exec ${shell} -i`,
   ], {
     cwd: projectPath,
     env: sessionEnv(),
@@ -444,7 +444,7 @@ async function handleSpawn(msg: SpawnMessage): Promise<void> {
           env: sessionEnv(),
         });
       } else {
-        ptyProcess = pty.spawn(shell, ['-i', '-c', command], {
+        ptyProcess = pty.spawn(shell, ['-i', '-c', `${command}; exec ${shell} -i`], {
           name: 'xterm-256color', cols: msg.cols, rows: msg.rows, cwd: msg.projectPath,
           env: sessionEnv(),
         });
@@ -474,7 +474,7 @@ async function handleSpawn(msg: SpawnMessage): Promise<void> {
         });
       } else {
         const command = buildSessionCommand(msg.task, false, sessionCmd, cliType);
-        ptyProcess = pty.spawn(shell, ['-i', '-c', command], {
+        ptyProcess = pty.spawn(shell, ['-i', '-c', `${command}; exec ${shell} -i`], {
           name: 'xterm-256color', cols: msg.cols, rows: msg.rows, cwd: msg.projectPath,
           env: sessionEnv(),
         });

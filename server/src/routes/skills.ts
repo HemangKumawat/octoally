@@ -119,25 +119,20 @@ export const skillsRoutes: FastifyPluginAsync = async (app) => {
       details: { telemetry: routerDb },
     });
 
-    // Check Ollama — TCP probe GPU tunnel (11435) then CPU (11434)
+    // Check Ollama — GPU tunnel only (11435, RTX 5070 Ti on ROG_Beast)
     const { createConnection } = await import('net');
     const tcpProbe = (port: number): Promise<boolean> => new Promise(resolve => {
       const sock = createConnection({ host: '127.0.0.1', port, timeout: 400 }, () => { sock.destroy(); resolve(true); });
       sock.on('error', () => resolve(false));
       sock.on('timeout', () => { sock.destroy(); resolve(false); });
     });
-    let ollamaStatus: { connected: boolean; gpu: boolean; url: string } = { connected: false, gpu: false, url: '' };
-    if (await tcpProbe(11435)) {
-      ollamaStatus = { connected: true, gpu: true, url: 'http://127.0.0.1:11435' };
-    } else if (await tcpProbe(11434)) {
-      ollamaStatus = { connected: true, gpu: false, url: 'http://127.0.0.1:11434' };
-    }
+    const ollamaGpuUp = await tcpProbe(11435);
     integrations.push({
       id: 'ollama',
       name: 'Ollama',
-      connected: ollamaStatus.connected,
-      status: ollamaStatus.connected ? 'ok' : 'error',
-      details: { url: ollamaStatus.url || 'http://127.0.0.1:11434', gpu: ollamaStatus.gpu },
+      connected: ollamaGpuUp,
+      status: ollamaGpuUp ? 'ok' : 'error',
+      details: { url: 'http://127.0.0.1:11435', gpu: true },
     });
 
     // Check Gemini CLI
