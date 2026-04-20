@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { searchSlash, searchIntent, recordSkillUsage } from '../lib/fuzzy';
 import type { IntentEntry } from '../lib/fuzzy';
 import type { SkillItem } from '../types/skills';
+import { SkillPicker } from './SkillPicker';
 
 type GpuState = 'gpu' | 'cpu' | 'off' | 'loading';
 
@@ -311,9 +312,19 @@ export function SkillSuggestBar({ projectPath }: SkillSuggestBarProps) {
           </span>
         )}
 
+        {/* SkillPicker browse button — always visible in the toolbar */}
+        <SkillPicker
+          className="shrink-0 ml-auto"
+          onSkillInvoke={(command) => {
+            window.dispatchEvent(new CustomEvent('octoally:skill-invoke', {
+              detail: { command: command + ' ', execute: false },
+            }));
+          }}
+        />
+
         {/* GPU/CPU indicator — always visible */}
         <span
-          className="shrink-0 ml-auto flex items-center gap-0.5 text-[9px] font-medium px-1.5 rounded-full"
+          className="shrink-0 flex items-center gap-0.5 text-[9px] font-medium px-1.5 rounded-full"
           style={{
             background: gpuState === 'gpu' ? 'rgba(34,197,94,0.15)' : gpuState === 'cpu' ? 'rgba(234,179,8,0.15)' : 'var(--bg-tertiary)',
             color: gpuState === 'gpu' ? '#22c55e' : gpuState === 'cpu' ? '#eab308' : 'var(--text-tertiary)',
