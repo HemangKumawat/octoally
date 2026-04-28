@@ -4,14 +4,12 @@ import { Palette, Check } from 'lucide-react';
 const STORAGE_KEY = 'octoally_theme';
 
 const THEMES = [
-  { id: 'default',    label: 'Default Dark',  bg: '#0f1117', accent: '#3b82f6' },
-  { id: 'cyberpunk',  label: 'Cyberpunk',      bg: '#050a0e', accent: '#00ffcc' },
-  { id: 'nord',       label: 'Nord',           bg: '#2e3440', accent: '#88c0d0' },
-  { id: 'solarized',  label: 'Solarized Dark', bg: '#002b36', accent: '#2aa198' },
-  { id: 'dracula',    label: 'Dracula',        bg: '#282a36', accent: '#bd93f9' },
-  { id: 'monokai',    label: 'Monokai Pro',    bg: '#272822', accent: '#a6e22e' },
-  { id: 'light',      label: 'Light',          bg: '#f7f8fa', accent: '#0969da' },
-  { id: 'sunset',     label: 'Sunset',         bg: '#1a1015', accent: '#ff9e64' },
+  { id: 'operator', label: 'Pro Operator',     blurb: 'dense · IDE',          bg: '#0d0f12', accent: '#ff7a1a' },
+  { id: 'neon',     label: 'Neon Vibecoder',   blurb: 'electric multi',       bg: '#0e0b14', accent: '#c6ff3d' },
+  { id: 'crt',      label: 'Retro CRT',        blurb: 'phosphor green',       bg: '#061006', accent: '#7dff7d' },
+  { id: 'studio',   label: 'Tasteful Studio',  blurb: 'editorial · serif',    bg: '#f5f2ec', accent: '#c65a3a' },
+  { id: 'zen',      label: 'Swiss Minimal',    blurb: 'grid · monochrome',    bg: '#ededea', accent: '#0a0a0a' },
+  { id: 'critter',  label: 'Playful Creature', blurb: 'octopus · soft pink',  bg: '#fff1f6', accent: '#ff4d8f' },
 ] as const;
 
 type ThemeId = (typeof THEMES)[number]['id'];
@@ -21,7 +19,7 @@ function loadTheme(): ThemeId {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && THEMES.some((t) => t.id === stored)) return stored as ThemeId;
   } catch {}
-  return 'default';
+  return 'operator';
 }
 
 function applyTheme(id: ThemeId) {
@@ -119,7 +117,10 @@ export function ThemeToggle({ theme, setTheme }: ThemeToggleProps) {
                     boxShadow: `inset 0 0 0 3px ${t.accent}44, 0 0 0 1px ${t.accent}88`,
                   }}
                 />
-                <span className="flex-1">{t.label}</span>
+                <span className="flex-1 flex flex-col items-start gap-0.5">
+                  <span>{t.label}</span>
+                  <span className="text-[10px] opacity-60">{t.blurb}</span>
+                </span>
                 {active && <Check className="w-3 h-3 shrink-0" style={{ color: 'var(--accent)' }} />}
               </button>
             );

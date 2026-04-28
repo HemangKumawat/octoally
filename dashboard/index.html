@@ -5,6 +5,22 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OctoAlly</title>
+    <script>
+      // SYNC WITH: src/components/ThemeToggle.tsx THEMES array + 'octoally_theme' storage key.
+      // Also mirror in: /home/hemang/command-deck/frontend/src/app.html, src/lib/stores/theme.ts.
+      // Drift here = FOUC or wrong-theme paint. See §10 item 11.
+      (function () {
+        var THEMES = ['operator','neon','crt','studio','zen','critter'];
+        var DEFAULT = 'operator';
+        try {
+          var v = localStorage.getItem('octoally_theme');
+          if (!v || THEMES.indexOf(v) === -1) v = DEFAULT;
+          document.documentElement.setAttribute('data-theme', v);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', DEFAULT);
+        }
+      })();
+    </script>
     <script src="/assets/clipboard-bridge.js"></script>
   </head>
   <body>

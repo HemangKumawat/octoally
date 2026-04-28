@@ -460,7 +460,7 @@ function Dashboard() {
       >
         <div className="flex items-center gap-2">
           <h1 className="text-base font-bold">
-            <span style={{ color: '#ef4444' }}>Octo</span><span style={{ color: 'var(--text-primary)' }}>Ally</span>
+            <span style={{ color: 'var(--ds-secondary, var(--accent))' }}>Octo</span><span style={{ color: 'var(--text-primary)' }}>Ally</span>
           </h1>
           <div className="flex items-center gap-1">
             {desktopVersion && (

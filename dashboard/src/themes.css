@@ -1,0 +1,225 @@
+/* themes.css — six personality variants from Something.zip design handoff (2026-04-28).
+ *
+ * SOURCE OF TRUTH: /tmp/something_design/design_handoff_octoally/README.md
+ * SIBLING FILE: /home/hemang/command-deck/frontend/src/lib/themes.css
+ * If a hex value changes, update BOTH files. Variant names + token shape are identical
+ * across both apps; only the legacy alias names differ (CD uses --bg/--cyan etc., this
+ * file uses --bg-primary/--accent etc. matching OctoAlly's pre-existing index.css).
+ */
+
+/* ─── Operator (default) ──────────────────────────────────────────────────── */
+:root,
+[data-theme="operator"] {
+  /* design-system tokens */
+  --ds-bg: #0d0f12;
+  --ds-surface: #14171c;
+  --ds-surface-hi: #1c2026;
+  --ds-surface-lo: #090b0d;
+  --ds-outline: #272c33;
+  --ds-text: #e6e9ee;
+  --ds-text-dim: #8b93a0;
+  --ds-text-mute: #5a6270;
+  --ds-primary: #ff7a1a;
+  --ds-on-primary: #0d0f12;
+  --ds-secondary: #4ea8ff;
+  --ds-tertiary: #22c38a;
+  --ds-accent4: #e6c84b;
+  --ds-accent5: #c56dff;
+  --ds-chip-bg: rgba(255,122,26,0.12);
+  --ds-danger: #ff4a5c;
+  --ds-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  --ds-display: 'Inter', system-ui, sans-serif;
+
+  /* OctoAlly legacy alias names */
+  --bg-primary: var(--ds-bg);
+  --bg-secondary: var(--ds-surface);
+  --bg-tertiary: var(--ds-surface-hi);
+  --border: var(--ds-outline);
+  --text-primary: var(--ds-text);
+  --text-secondary: var(--ds-text-dim);
+  --text-tertiary: var(--ds-text-mute);
+  --accent: var(--ds-primary);
+  --accent-hover: color-mix(in srgb, var(--ds-primary) 85%, var(--ds-bg));
+  --success: var(--ds-tertiary);
+  --warning: var(--ds-accent4);
+  --error: var(--ds-danger);
+}
+
+/* ─── Neon ─────────────────────────────────────────────────────────────────── */
+[data-theme="neon"] {
+  --ds-bg: #0e0b14;
+  --ds-surface: #15111d;
+  --ds-surface-hi: #1e1930;
+  --ds-surface-lo: #0a0810;
+  --ds-outline: #332850;
+  --ds-text: #f4edff;
+  --ds-text-dim: #a79bc4;
+  --ds-text-mute: #6a5e88;
+  --ds-primary: #c6ff3d;
+  --ds-on-primary: #0b1400;
+  --ds-secondary: #ff3df0;
+  --ds-tertiary: #3dc9ff;
+  --ds-accent4: #ffb43d;
+  --ds-accent5: #b83dff;
+  --ds-chip-bg: rgba(198,255,61,0.12);
+  --ds-danger: #ff5470;
+  --ds-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  --ds-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+
+  --bg-primary: var(--ds-bg);
+  --bg-secondary: var(--ds-surface);
+  --bg-tertiary: var(--ds-surface-hi);
+  --border: var(--ds-outline);
+  --text-primary: var(--ds-text);
+  --text-secondary: var(--ds-text-dim);
+  --text-tertiary: var(--ds-text-mute);
+  --accent: var(--ds-primary);
+  --accent-hover: color-mix(in srgb, var(--ds-primary) 85%, var(--ds-bg));
+  --success: var(--ds-tertiary);
+  --warning: var(--ds-accent4);
+  --error: var(--ds-danger);
+}
+
+/* ─── CRT ──────────────────────────────────────────────────────────────────── */
+[data-theme="crt"] {
+  --ds-bg: #061006;
+  --ds-surface: #0a1a0a;
+  --ds-surface-hi: #102610;
+  --ds-surface-lo: #050c05;
+  --ds-outline: #1c4020;
+  --ds-text: #a6ffa6;
+  --ds-text-dim: #5fcf5f;
+  --ds-text-mute: #3a7a3a;
+  --ds-primary: #7dff7d;
+  --ds-on-primary: #03100a;
+  --ds-secondary: #ffb74d;
+  --ds-tertiary: #64d8ff;
+  --ds-accent4: #ff77b3;
+  --ds-accent5: #fff176;
+  --ds-chip-bg: rgba(125,255,125,0.10);
+  --ds-danger: #ff6b6b;
+  --ds-mono: 'VT323', 'IBM Plex Mono', ui-monospace, monospace;
+  --ds-display: 'VT323', 'IBM Plex Mono', ui-monospace, monospace;
+
+  --bg-primary: var(--ds-bg);
+  --bg-secondary: var(--ds-surface);
+  --bg-tertiary: var(--ds-surface-hi);
+  --border: var(--ds-outline);
+  --text-primary: var(--ds-text);
+  --text-secondary: var(--ds-text-dim);
+  --text-tertiary: var(--ds-text-mute);
+  --accent: var(--ds-primary);
+  --accent-hover: color-mix(in srgb, var(--ds-primary) 85%, var(--ds-bg));
+  --success: var(--ds-tertiary);
+  --warning: var(--ds-accent4);
+  --error: var(--ds-danger);
+}
+
+/* ─── Studio ───────────────────────────────────────────────────────────────── */
+[data-theme="studio"] {
+  --ds-bg: #f5f2ec;
+  --ds-surface: #fdfcf9;
+  --ds-surface-hi: #ffffff;
+  --ds-surface-lo: #ebe6dc;
+  --ds-outline: #d8d2c4;
+  --ds-text: #1a1714;
+  --ds-text-dim: #564f45;
+  --ds-text-mute: #9a9082;
+  --ds-primary: #c65a3a;
+  --ds-on-primary: #ffffff;
+  --ds-secondary: #2d4a3e;
+  --ds-tertiary: #3b5a7a;
+  --ds-accent4: #c9a949;
+  --ds-accent5: #7a4a6d;
+  --ds-chip-bg: #ece5d5;
+  --ds-danger: #a8442e;
+  --ds-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --ds-display: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+
+  --bg-primary: var(--ds-bg);
+  --bg-secondary: var(--ds-surface);
+  --bg-tertiary: var(--ds-surface-hi);
+  --border: var(--ds-outline);
+  --text-primary: var(--ds-text);
+  --text-secondary: var(--ds-text-dim);
+  --text-tertiary: var(--ds-text-mute);
+  --accent: var(--ds-primary);
+  --accent-hover: color-mix(in srgb, var(--ds-primary) 85%, var(--ds-bg));
+  --success: var(--ds-tertiary);
+  --warning: var(--ds-accent4);
+  --error: var(--ds-danger);
+}
+
+/* ─── Zen ──────────────────────────────────────────────────────────────────── */
+[data-theme="zen"] {
+  --ds-bg: #ededea;
+  --ds-surface: #ffffff;
+  --ds-surface-hi: #ffffff;
+  --ds-surface-lo: #e4e4e0;
+  --ds-outline: #0a0a0a;
+  --ds-text: #0a0a0a;
+  --ds-text-dim: #4a4a4a;
+  --ds-text-mute: #8a8a8a;
+  --ds-primary: #0a0a0a;
+  --ds-on-primary: #ffffff;
+  --ds-secondary: #ff3b2f;
+  --ds-tertiary: #4a4a4a;
+  --ds-accent4: #0a0a0a;
+  --ds-accent5: #4a4a4a;
+  --ds-chip-bg: #e4e4e0;
+  --ds-danger: #ff3b2f;
+  --ds-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --ds-display: 'Inter', system-ui, sans-serif;
+
+  --bg-primary: var(--ds-bg);
+  --bg-secondary: var(--ds-surface);
+  --bg-tertiary: var(--ds-surface-hi);
+  --border: var(--ds-outline);
+  --text-primary: var(--ds-text);
+  --text-secondary: var(--ds-text-dim);
+  --text-tertiary: var(--ds-text-mute);
+  --accent: var(--ds-primary);
+  --accent-hover: color-mix(in srgb, var(--ds-primary) 85%, var(--ds-bg));
+  --success: var(--ds-tertiary);
+  --warning: var(--ds-accent4);
+  --error: var(--ds-danger);
+}
+
+/* ─── Critter ──────────────────────────────────────────────────────────────── */
+[data-theme="critter"] {
+  --ds-bg: #fff1f6;
+  --ds-surface: #ffffff;
+  --ds-surface-hi: #fff9fb;
+  --ds-surface-lo: #ffe1ea;
+  --ds-outline: #ffc7d7;
+  --ds-text: #3d1a2b;
+  --ds-text-dim: #8a5a6f;
+  --ds-text-mute: #c097a7;
+  --ds-primary: #ff4d8f;
+  --ds-on-primary: #ffffff;
+  --ds-secondary: #7c5cff;
+  --ds-tertiary: #2dd4bf;
+  --ds-accent4: #ffc94d;
+  --ds-accent5: #4dc3ff;
+  --ds-chip-bg: #ffdfe9;
+  --ds-danger: #ff3d6a;
+  --ds-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --ds-display: 'Nunito', 'Inter', system-ui, sans-serif;
+
+  --bg-primary: var(--ds-bg);
+  --bg-secondary: var(--ds-surface);
+  --bg-tertiary: var(--ds-surface-hi);
+  --border: var(--ds-outline);
+  --text-primary: var(--ds-text);
+  --text-secondary: var(--ds-text-dim);
+  --text-tertiary: var(--ds-text-mute);
+  --accent: var(--ds-primary);
+  --accent-hover: color-mix(in srgb, var(--ds-primary) 85%, var(--ds-bg));
+  --success: var(--ds-tertiary);
+  --warning: var(--ds-accent4);
+  --error: var(--ds-danger);
+}
+
+/* OctoAlly inherits the same 6 hex palettes but uses different alias names. The light
+ * themes need scrollbar darkening since OA also has its own ::-webkit-scrollbar rules
+ * (none in index.css today, but xterm.js renders its own; defer scrollbar light-fix). */
