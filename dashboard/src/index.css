@@ -128,7 +128,10 @@ select:hover {
 .skeleton {
   position: relative;
   overflow: hidden;
-  background-color: var(--bg3, rgba(255, 255, 255, 0.04));
+  /* R1 fix (2026-05-08): use --bg3-skeleton (≥3:1 WCAG 1.4.11 per theme) ALWAYS,
+     not just inside prefers-reduced-motion. Light themes (zen/studio/critter)
+     previously fell through to --bg3 (≈white-on-white = 1.05:1 invisible). */
+  background-color: var(--bg3-skeleton, var(--bg3, rgba(255, 255, 255, 0.04)));
   border-radius: 4px;
   /* Prevent text/layout flicker for fast loads — delayMs-aware via animation-delay */
   min-height: 0.75rem;

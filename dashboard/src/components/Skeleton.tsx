@@ -25,14 +25,19 @@ export interface SkeletonProps {
    * ARIA label for screen readers while loading. Default 'Loading'.
    * Accepts EITHER `aria-label` (preferred, matches HTML convention) OR `label`.
    * Resolution order: aria-label > label > 'Loading'.
+   * R2-N1 fix (2026-05-08): empty-string aria-label="" no longer beats label —
+   * uses truthy fallback (||) instead of nullish (??).
    */
   'aria-label'?: string;
   label?: string;
   /** Delay (ms) before shimmer appears — prevents flicker on fast loads. Default 300. */
   delayMs?: number;
-  /** Timeout (ms) before showing retry/still-loading UI. Default 15000. */
+  /** Timeout (ms) before showing retry/reload UI. Default 15000. */
   timeoutMs?: number;
-  /** Called when timeoutMs elapses; if absent, "Still loading…" text is shown. */
+  /**
+   * Called when timeoutMs elapses; if absent, the wrapper renders a Reload button
+   * that calls window.location.reload() so the user always has a recovery path.
+   */
   onTimeout?: () => void;
 }
 
@@ -47,14 +52,15 @@ export interface SkeletonProps {
  *  - aria-busy="true" while loading
  *  - aria-live="polite" announces label once
  *  - Respects prefers-reduced-motion via the .skeleton CSS rule
+ *  - On timeout, role="alert" (implicit aria-live=assertive) draws operator attention
  *
  * States handled:
  *  - loading=true                 -> shimmer rows
+ *  - loading=true + timedOut      -> Retry (if onTimeout) or Reload button — both inside role=alert
  *  - loading=false + error        -> error slot (if provided) or children
  *  - loading=false + isEmpty      -> empty slot (if provided) or children
  *  - loading=false                -> children
  *  - fast load (<delayMs)         -> no shimmer, no flicker (opacity:0 until animation-delay)
- *  - slow load (>5s)              -> shimmer continues; no UI lock (purely visual)
  */
 export function Skeleton({
   loading,
@@ -73,8 +79,9 @@ export function Skeleton({
   timeoutMs = 15000,
   onTimeout,
 }: SkeletonProps) {
-  // Resolution order: aria-label > label > 'Loading'
-  const resolvedLabel = ariaLabelProp ?? label ?? 'Loading';
+  // Resolution order: aria-label > label > 'Loading'.
+  // R2-N1 fix: truthy fallback (||) so empty string doesn't win over label.
+  const resolvedLabel = ariaLabelProp || label || 'Loading';
 
   // A4: announce load-complete when loading flips false (polite, no focus steal)
   const liveRef = useRef<HTMLSpanElement | null>(null);
@@ -110,6 +117,10 @@ export function Skeleton({
   const widthFor = (i: number) =>
     typeof rowWidth === 'function' ? rowWidth(i) : rowWidth;
 
+  // R3 fix: default to page reload when no onTimeout supplied — always give user a recovery action.
+  const handleTimeout = onTimeout ?? (() => window.location.reload());
+  const ctaLabel = onTimeout ? 'Retry' : 'Reload';
+
   return (
     <div
       role="status"
@@ -137,9 +148,10 @@ export function Skeleton({
         />
       ))}
       {timedOut && (
-        onTimeout
-          ? <button type="button" onClick={onTimeout} style={{ marginTop: '0.5rem', fontSize: '0.75rem' }}>Retry</button>
-          : <span style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>Still loading…</span>
+        // R4 fix: role=alert (implicit aria-live=assertive) — state change needing operator attention.
+        <div role="alert" style={{ marginTop: '0.5rem' }}>
+          <button type="button" onClick={handleTimeout} style={{ fontSize: '0.75rem' }}>{ctaLabel}</button>
+        </div>
       )}
     </div>
   );
@@ -160,14 +172,15 @@ export interface SkeletonGroupProps {
   /**
    * ARIA label. Accepts either `aria-label` (preferred) OR `label`.
    * Resolution order: aria-label > label > 'Loading'.
+   * R2-N1 fix: truthy fallback so empty string doesn't beat label.
    */
   'aria-label'?: string;
   label?: string;
   /** Delay (ms) before shimmer appears. Default 300. */
   delayMs?: number;
-  /** Timeout (ms) before showing retry/still-loading UI. Default 15000. */
+  /** Timeout (ms) before showing retry/reload UI. Default 15000. */
   timeoutMs?: number;
-  /** Called when timeoutMs elapses; if absent, "Still loading…" text is shown. */
+  /** Called when timeoutMs elapses; if absent, defaults to window.location.reload(). */
   onTimeout?: () => void;
 }
 
@@ -185,8 +198,8 @@ export function SkeletonGroup({
   timeoutMs = 15000,
   onTimeout,
 }: SkeletonGroupProps) {
-  // Resolution order: aria-label > label > 'Loading'
-  const resolvedLabel = ariaLabelProp ?? label ?? 'Loading';
+  // R2-N1 fix: truthy fallback.
+  const resolvedLabel = ariaLabelProp || label || 'Loading';
 
   // A4: announce load-complete when loading flips false
   const liveRef = useRef<HTMLSpanElement | null>(null);
@@ -214,6 +227,10 @@ export function SkeletonGroup({
     </>
   );
 
+  // R3 fix: default to page reload when no onTimeout supplied.
+  const handleTimeout = onTimeout ?? (() => window.location.reload());
+  const ctaLabel = onTimeout ? 'Retry' : 'Reload';
+
   return (
     <div
       role="status"
@@ -232,9 +249,10 @@ export function SkeletonGroup({
         />
       ))}
       {timedOut && (
-        onTimeout
-          ? <button type="button" onClick={onTimeout} style={{ marginTop: '0.5rem', fontSize: '0.75rem', gridColumn: '1/-1' }}>Retry</button>
-          : <span style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7, gridColumn: '1/-1' }}>Still loading…</span>
+        // R4 fix: role=alert; R3 fix: default Reload action.
+        <div role="alert" style={{ marginTop: '0.5rem', gridColumn: '1/-1' }}>
+          <button type="button" onClick={handleTimeout} style={{ fontSize: '0.75rem' }}>{ctaLabel}</button>
+        </div>
       )}
     </div>
   );
