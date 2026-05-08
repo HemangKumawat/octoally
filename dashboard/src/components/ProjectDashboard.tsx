@@ -86,7 +86,7 @@ function FolderBrowser({ onSelect }: { onSelect: (path: string, folderName: stri
       <div className="max-h-64 overflow-y-auto">
         {isFolderPending ? (
           <div className="py-3 px-3">
-            <Skeleton loading={true} rows={4} rowHeight="28px" rowGap="0.25rem" aria-label="Loading folders" />
+            <Skeleton loading={true} rows={4} rowHeight="1.75rem" rowGap="0.25rem" aria-label="Loading folders" />
           </div>
         ) : data?.dirs.length === 0 ? (
           <div className="py-4 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -1761,7 +1761,7 @@ export function ProjectDashboard({ onOpenProject, active = true, onSelectedProje
         <div className="mx-auto px-6" style={{ maxWidth: '82rem' }}>
         {loadingProjects ? (
           <div className="py-4 px-6">
-            <SkeletonGroup loading={true} count={6} blockHeight="80px" gridTemplate="repeat(auto-fill, minmax(260px, 1fr))" gap="1rem" aria-label="Loading projects" />
+            <SkeletonGroup loading={true} count={6} blockHeight="5rem" gridTemplate="repeat(auto-fill, minmax(260px, 1fr))" gap="1rem" aria-label="Loading projects" />
           </div>
         ) : projects.length === 0 ? (
           <div

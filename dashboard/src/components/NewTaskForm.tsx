@@ -52,7 +52,7 @@ function FolderBrowser({ onSelect }: { onSelect: (path: string, folderName: stri
       <div className="max-h-64 overflow-y-auto">
         {isFolderPending ? (
           <div className="py-3 px-3">
-            <Skeleton loading={true} rows={4} rowHeight="28px" rowGap="0.25rem" aria-label="Loading folders" />
+            <Skeleton loading={true} rows={4} rowHeight="1.75rem" rowGap="0.25rem" aria-label="Loading folders" />
           </div>
         ) : data?.dirs.length === 0 ? (
           <div className="py-4 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>

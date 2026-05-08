@@ -34,6 +34,9 @@
   --bg-primary: var(--ds-bg);
   --bg-secondary: var(--ds-surface);
   --bg-tertiary: var(--ds-surface-hi);
+  --bg3: var(--bg-tertiary);
+  /* WCAG 1.4.11: skeleton bar vs container ≥3:1 under prefers-reduced-motion */
+  --bg3-skeleton: #626467; /* ratio=3.026 vs --bg-secondary #14171c */
   --border: var(--ds-outline);
   --text-primary: var(--ds-text);
   --text-secondary: var(--ds-text-dim);
@@ -69,6 +72,9 @@
   --bg-primary: var(--ds-bg);
   --bg-secondary: var(--ds-surface);
   --bg-tertiary: var(--ds-surface-hi);
+  --bg3: var(--bg-tertiary);
+  /* WCAG 1.4.11: ratio=3.003 vs --bg-secondary #15111d */
+  --bg3-skeleton: #626068;
   --border: var(--ds-outline);
   --text-primary: var(--ds-text);
   --text-secondary: var(--ds-text-dim);
@@ -104,6 +110,9 @@
   --bg-primary: var(--ds-bg);
   --bg-secondary: var(--ds-surface);
   --bg-tertiary: var(--ds-surface-hi);
+  --bg3: var(--bg-tertiary);
+  /* WCAG 1.4.11: ratio=3.001 vs --bg-secondary #0a1a0a */
+  --bg3-skeleton: #5b665b;
   --border: var(--ds-outline);
   --text-primary: var(--ds-text);
   --text-secondary: var(--ds-text-dim);
@@ -139,6 +148,9 @@
   --bg-primary: var(--ds-bg);
   --bg-secondary: var(--ds-surface);
   --bg-tertiary: var(--ds-surface-hi);
+  --bg3: var(--bg-tertiary);
+  /* WCAG 1.4.11: ratio=3.030 vs --bg-secondary #fdfcf9 */
+  --bg3-skeleton: #939290;
   --border: var(--ds-outline);
   --text-primary: var(--ds-text);
   --text-secondary: var(--ds-text-dim);
@@ -174,6 +186,9 @@
   --bg-primary: var(--ds-bg);
   --bg-secondary: var(--ds-surface);
   --bg-tertiary: var(--ds-surface-hi);
+  --bg3: var(--bg-tertiary);
+  /* WCAG 1.4.11: ratio=3.033 vs --bg-secondary #ffffff */
+  --bg3-skeleton: #949494;
   --border: var(--ds-outline);
   --text-primary: var(--ds-text);
   --text-secondary: var(--ds-text-dim);
@@ -209,6 +224,9 @@
   --bg-primary: var(--ds-bg);
   --bg-secondary: var(--ds-surface);
   --bg-tertiary: var(--ds-surface-hi);
+  --bg3: var(--bg-tertiary);
+  /* WCAG 1.4.11: ratio=3.033 vs --bg-secondary #ffffff */
+  --bg3-skeleton: #949494;
   --border: var(--ds-outline);
   --text-primary: var(--ds-text);
   --text-secondary: var(--ds-text-dim);

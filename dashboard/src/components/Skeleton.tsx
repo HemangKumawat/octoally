@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export interface SkeletonProps {
   /** Show shimmer when true. */
@@ -21,10 +21,19 @@ export interface SkeletonProps {
   rowGap?: string;
   /** Free-form className for the OUTER wrapper (not the rows). */
   className?: string;
-  /** ARIA label announced to screen readers while loading. Default 'Loading'. */
+  /**
+   * ARIA label for screen readers while loading. Default 'Loading'.
+   * Accepts EITHER `aria-label` (preferred, matches HTML convention) OR `label`.
+   * Resolution order: aria-label > label > 'Loading'.
+   */
+  'aria-label'?: string;
   label?: string;
-  /** Delay (ms) before shimmer appears — prevents flicker on fast loads. Default 100. */
+  /** Delay (ms) before shimmer appears — prevents flicker on fast loads. Default 300. */
   delayMs?: number;
+  /** Timeout (ms) before showing retry/still-loading UI. Default 15000. */
+  timeoutMs?: number;
+  /** Called when timeoutMs elapses; if absent, "Still loading…" text is shown. */
+  onTimeout?: () => void;
 }
 
 /**
@@ -58,13 +67,44 @@ export function Skeleton({
   rowWidth = '100%',
   rowGap = '0.4rem',
   className,
-  label = 'Loading',
-  delayMs = 100,
+  'aria-label': ariaLabelProp,
+  label,
+  delayMs = 300,
+  timeoutMs = 15000,
+  onTimeout,
 }: SkeletonProps) {
+  // Resolution order: aria-label > label > 'Loading'
+  const resolvedLabel = ariaLabelProp ?? label ?? 'Loading';
+
+  // A4: announce load-complete when loading flips false (polite, no focus steal)
+  const liveRef = useRef<HTMLSpanElement | null>(null);
+  const prevLoading = useRef(loading);
+  useEffect(() => {
+    if (prevLoading.current && !loading && liveRef.current) {
+      liveRef.current.textContent = `${resolvedLabel} loaded`;
+    }
+    prevLoading.current = loading;
+  }, [loading, resolvedLabel]);
+
+  // A5: timeout boundary — clear timer if loading resolves before timeout
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (!loading) { setTimedOut(false); return; }
+    const t = setTimeout(() => setTimedOut(true), timeoutMs);
+    return () => clearTimeout(t);
+  }, [loading, timeoutMs]);
+
   if (!loading) {
     if (error) return <>{error}</>;
     if (isEmpty && empty !== undefined) return <>{empty}</>;
-    return <>{children}</>;
+    return (
+      <>
+        {/* A4: polite live region persists briefly after content renders */}
+        <span ref={liveRef} role="status" aria-live="polite" aria-atomic="true"
+          style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', clipPath: 'inset(50%)', whiteSpace: 'nowrap' }} />
+        {children}
+      </>
+    );
   }
 
   const widthFor = (i: number) =>
@@ -75,7 +115,7 @@ export function Skeleton({
       role="status"
       aria-busy="true"
       aria-live="polite"
-      aria-label={label}
+      aria-label={resolvedLabel}
       className={className}
       style={{
         display: 'flex',
@@ -83,9 +123,6 @@ export function Skeleton({
         gap: rowGap,
       }}
     >
-      <span style={{ position: 'absolute', left: -9999, width: 1, height: 1 }}>
-        {label}…
-      </span>
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
@@ -99,6 +136,11 @@ export function Skeleton({
           aria-hidden="true"
         />
       ))}
+      {timedOut && (
+        onTimeout
+          ? <button type="button" onClick={onTimeout} style={{ marginTop: '0.5rem', fontSize: '0.75rem' }}>Retry</button>
+          : <span style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>Still loading…</span>
+      )}
     </div>
   );
 }
@@ -115,7 +157,18 @@ export interface SkeletonGroupProps {
   gridTemplate?: string;
   gap?: string;
   className?: string;
+  /**
+   * ARIA label. Accepts either `aria-label` (preferred) OR `label`.
+   * Resolution order: aria-label > label > 'Loading'.
+   */
+  'aria-label'?: string;
   label?: string;
+  /** Delay (ms) before shimmer appears. Default 300. */
+  delayMs?: number;
+  /** Timeout (ms) before showing retry/still-loading UI. Default 15000. */
+  timeoutMs?: number;
+  /** Called when timeoutMs elapses; if absent, "Still loading…" text is shown. */
+  onTimeout?: () => void;
 }
 
 export function SkeletonGroup({
@@ -126,27 +179,63 @@ export function SkeletonGroup({
   gridTemplate = 'repeat(auto-fit, minmax(140px, 1fr))',
   gap = '0.5rem',
   className,
-  label = 'Loading',
+  'aria-label': ariaLabelProp,
+  label,
+  delayMs = 300,
+  timeoutMs = 15000,
+  onTimeout,
 }: SkeletonGroupProps) {
-  if (!loading) return <>{children}</>;
+  // Resolution order: aria-label > label > 'Loading'
+  const resolvedLabel = ariaLabelProp ?? label ?? 'Loading';
+
+  // A4: announce load-complete when loading flips false
+  const liveRef = useRef<HTMLSpanElement | null>(null);
+  const prevLoading = useRef(loading);
+  useEffect(() => {
+    if (prevLoading.current && !loading && liveRef.current) {
+      liveRef.current.textContent = `${resolvedLabel} loaded`;
+    }
+    prevLoading.current = loading;
+  }, [loading, resolvedLabel]);
+
+  // A5: timeout boundary
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (!loading) { setTimedOut(false); return; }
+    const t = setTimeout(() => setTimedOut(true), timeoutMs);
+    return () => clearTimeout(t);
+  }, [loading, timeoutMs]);
+
+  if (!loading) return (
+    <>
+      <span ref={liveRef} role="status" aria-live="polite" aria-atomic="true"
+        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', clipPath: 'inset(50%)', whiteSpace: 'nowrap' }} />
+      {children}
+    </>
+  );
+
   return (
     <div
       role="status"
       aria-busy="true"
       aria-live="polite"
-      aria-label={label}
+      aria-label={resolvedLabel}
       className={className}
       style={{ display: 'grid', gridTemplateColumns: gridTemplate, gap }}
     >
-      <span style={{ position: 'absolute', left: -9999, width: 1, height: 1 }}>{label}…</span>
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
           className="skeleton"
-          style={{ height: blockHeight, animationDelay: `${100 + i * 80}ms` }}
+          style={{ height: blockHeight, animationDelay: `${delayMs + i * 80}ms` }}
           aria-hidden="true"
         />
       ))}
+      {timedOut && (
+        onTimeout
+          ? <button type="button" onClick={onTimeout} style={{ marginTop: '0.5rem', fontSize: '0.75rem', gridColumn: '1/-1' }}>Retry</button>
+          : <span style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7, gridColumn: '1/-1' }}>Still loading…</span>
+      )}
     </div>
   );
 }

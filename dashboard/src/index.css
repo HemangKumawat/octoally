@@ -157,5 +157,6 @@ select:hover {
 }
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after { animation: none; }
-  .skeleton { background-color: var(--bg3, rgba(255, 255, 255, 0.06)); opacity: 1; animation: none; }
+  /* WCAG 1.4.11: use --bg3-skeleton (≥3:1 per theme) so static bar is visible without motion */
+  .skeleton { background-color: var(--bg3-skeleton, var(--bg3, rgba(255, 255, 255, 0.06))); opacity: 1; animation: none; }
 }

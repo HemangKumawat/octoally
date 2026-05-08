@@ -61,7 +61,7 @@ function CommandInput({
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const queryClient = useQueryClient();
-  const { data, isPending: isLoading } = useQuery({
+  const { data, isPending } = useQuery({
     queryKey: ['settings'],
     queryFn: () => api.settings.get(),
   });
@@ -168,7 +168,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
         {/* Body — 2-column grid */}
         <div className="px-6 py-5 overflow-y-auto" style={{ maxHeight: '65vh' }}>
-          {isLoading ? (
+          {isPending ? (
             <Skeleton loading={true} rows={8} rowHeight="2.5rem" rowGap="0.6rem" aria-label="Loading settings" />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
@@ -502,7 +502,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           )}
 
           {/* Keyboard Shortcuts — full-width section */}
-          {!isLoading && <ShortcutsSection />}
+          {!isPending && <ShortcutsSection />}
         </div>
 
         {/* Footer */}
