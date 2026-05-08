@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { Play, Loader2, Plus, FolderOpen, ChevronRight, ArrowUp, Trash2, X, Bot, Pencil, Save, TerminalSquare } from 'lucide-react';
 import { AgentGuideModal } from './AgentGuide';
+import { Skeleton } from './Skeleton';
 
 interface NewTaskFormProps {
   onSessionCreated?: (sessionId: string, projectName?: string, mode?: 'session' | 'terminal') => void;
@@ -11,7 +12,7 @@ interface NewTaskFormProps {
 function FolderBrowser({ onSelect }: { onSelect: (path: string, folderName: string) => void }) {
   const [browsePath, setBrowsePath] = useState<string | undefined>(undefined);
 
-  const { data, isLoading } = useQuery({
+  const { data, isPending: isFolderPending } = useQuery({
     queryKey: ['browse', browsePath],
     queryFn: () => api.projects.browse(browsePath),
   });
@@ -49,9 +50,9 @@ function FolderBrowser({ onSelect }: { onSelect: (path: string, folderName: stri
 
       {/* Directory listing */}
       <div className="max-h-64 overflow-y-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--accent)' }} />
+        {isFolderPending ? (
+          <div className="py-3 px-3">
+            <Skeleton loading={true} rows={4} rowHeight="28px" rowGap="0.25rem" aria-label="Loading folders" />
           </div>
         ) : data?.dirs.length === 0 ? (
           <div className="py-4 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -92,7 +93,7 @@ export function NewTaskForm({ onSessionCreated }: NewTaskFormProps) {
   const [sessionOpenclawPrompt, setSessionOpenclawPrompt] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: projectsData, isLoading: loadingProjects } = useQuery({
+  const { data: projectsData, isPending: loadingProjects } = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.projects.list(),
   });
@@ -228,10 +229,7 @@ export function NewTaskForm({ onSessionCreated }: NewTaskFormProps) {
               Project
             </label>
             {loadingProjects ? (
-              <div className="flex items-center gap-2 py-2">
-                <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--accent)' }} />
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading...</span>
-              </div>
+              <Skeleton loading={true} rows={3} rowHeight="2rem" rowGap="0.3rem" aria-label="Loading projects" />
             ) : projects.length === 0 && !showAddProject ? (
               <div className="space-y-2">
                 <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>

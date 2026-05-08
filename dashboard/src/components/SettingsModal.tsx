@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { X, Settings, Check, Loader2, Zap, Bot, Type, Globe, RotateCcw, BarChart3, Download, Trash2, Keyboard } from 'lucide-react';
 import { ClaudeIcon, CodexIcon } from './CliIcons';
+import { Skeleton } from './Skeleton';
 import {
   ACTIONS,
   type ActionDef,
@@ -60,7 +61,7 @@ function CommandInput({
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isPending: isLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: () => api.settings.get(),
   });
@@ -168,9 +169,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         {/* Body — 2-column grid */}
         <div className="px-6 py-5 overflow-y-auto" style={{ maxHeight: '65vh' }}>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--text-secondary)' }} />
-            </div>
+            <Skeleton loading={true} rows={8} rowHeight="2.5rem" rowGap="0.6rem" aria-label="Loading settings" />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               {/* ── LEFT COLUMN ── */}
@@ -375,7 +374,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     Custom status bar for Claude Code showing git branch, model, context usage, cost, and session duration.
                   </p>
                   {(() => {
-                    const { data: slData, isLoading: slLoading } = useQuery({
+                    const { data: slData, isPending: slLoading } = useQuery({
                       queryKey: ['statusline'],
                       queryFn: () => api.settings.statusline.get(),
                     });

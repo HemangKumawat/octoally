@@ -32,6 +32,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { ClaudeIcon, CodexIcon } from './CliIcons';
+import { Skeleton, SkeletonGroup } from './Skeleton';
 import { ConfirmModal } from './ConfirmModal';
 import { RufloDeprecationModal } from './RufloDeprecationModal';
 import { StatuslinePromptModal } from './StatuslinePromptModal';
@@ -48,7 +49,7 @@ type ViewState = { mode: 'list' } | { mode: 'add' } | { mode: 'edit'; project: P
 function FolderBrowser({ onSelect }: { onSelect: (path: string, folderName: string) => void }) {
   const [browsePath, setBrowsePath] = useState<string | undefined>(undefined);
 
-  const { data, isLoading } = useQuery({
+  const { data, isPending: isFolderPending } = useQuery({
     queryKey: ['browse', browsePath],
     queryFn: () => api.projects.browse(browsePath),
   });
@@ -83,9 +84,9 @@ function FolderBrowser({ onSelect }: { onSelect: (path: string, folderName: stri
         </button>
       </div>
       <div className="max-h-64 overflow-y-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--accent)' }} />
+        {isFolderPending ? (
+          <div className="py-3 px-3">
+            <Skeleton loading={true} rows={4} rowHeight="28px" rowGap="0.25rem" aria-label="Loading folders" />
           </div>
         ) : data?.dirs.length === 0 ? (
           <div className="py-4 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -287,7 +288,7 @@ function ProjectForm({
     setShowBrowser(false);
   };
 
-  const filesLoading = mode === 'edit' && (!!projectPath) && (claudeMdQuery.isLoading || agentsMdQuery.isLoading || settingsQuery.isLoading);
+  const filesLoading = mode === 'edit' && (!!projectPath) && (claudeMdQuery.isPending || agentsMdQuery.isPending || settingsQuery.isPending);
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
@@ -1373,7 +1374,7 @@ export function ProjectDashboard({ onOpenProject, active = true, onSelectedProje
     return () => window.removeEventListener('octoally:open-project', handler);
   }, [onOpenProject]);
 
-  const { data: projectsData, isLoading: loadingProjects } = useQuery({
+  const { data: projectsData, isPending: loadingProjects } = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.projects.list(),
   });
@@ -1759,8 +1760,8 @@ export function ProjectDashboard({ onOpenProject, active = true, onSelectedProje
         </div>
         <div className="mx-auto px-6" style={{ maxWidth: '82rem' }}>
         {loadingProjects ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--accent)' }} />
+          <div className="py-4 px-6">
+            <SkeletonGroup loading={true} count={6} blockHeight="80px" gridTemplate="repeat(auto-fill, minmax(260px, 1fr))" gap="1rem" aria-label="Loading projects" />
           </div>
         ) : projects.length === 0 ? (
           <div

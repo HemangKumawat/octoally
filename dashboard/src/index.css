@@ -119,3 +119,43 @@ select:hover {
 .markdown-preview input[type="checkbox"] {
   margin-right: 0.5em;
 }
+
+/* ============================================
+   Skeleton primitive — shimmer loading state
+   See: wiki/patterns/dashboard-loading-states.md
+   Operator-Interface-Is-Infrastructure (2026-05-08)
+   ============================================ */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bg3, rgba(255, 255, 255, 0.04));
+  border-radius: 4px;
+  /* Prevent text/layout flicker for fast loads — delayMs-aware via animation-delay */
+  min-height: 0.75rem;
+  /* Fast-load no-flicker fix: rows are invisible until animation-delay elapses */
+  opacity: 0;
+  animation: skeleton-fade-in 0ms forwards;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+@keyframes skeleton-fade-in {
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+  .skeleton { background-color: var(--bg3, rgba(255, 255, 255, 0.06)); opacity: 1; animation: none; }
+}

@@ -44,6 +44,7 @@ interface ActiveEventsProps {
   onGoToSession: (projectId: string, sessionId: string) => void;
 }
 
+// skeleton-system: excluded — streams live via WebSocket (no initial fetch loading state to replace)
 export function ActiveEvents({ onBack, onGoToSession }: ActiveEventsProps) {
   const events = useStreamStore((s) => s.events);
   const connected = useStreamStore((s) => s.connected);
