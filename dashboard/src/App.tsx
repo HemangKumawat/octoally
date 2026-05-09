@@ -20,6 +20,8 @@ import { initSpeechListeners } from './lib/speech';
 import { onVoiceCommand } from './lib/voice-commands';
 import type { VoiceCommandPayload } from './lib/voice-commands';
 import { installShortcutDispatcher, useShortcut, useShortcutStore, markKeyboardNav } from './lib/shortcuts';
+import { CodeburnPanel } from './components/codeburn/CodeburnPanel';
+import { Activity } from 'lucide-react';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -585,6 +587,19 @@ function Dashboard() {
           Projects
         </button>
 
+        {/* Codeburn tab */}
+        <button
+          onClick={() => { setActiveTab('codeburn'); dismissActiveTerminals(); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors shrink-0"
+          style={{
+            background: activeTab === 'codeburn' ? 'var(--bg-tertiary)' : 'transparent',
+            color: activeTab === 'codeburn' ? 'var(--text-primary)' : 'var(--text-secondary)',
+          }}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          Codeburn
+        </button>
+
         {/* Divider */}
         {projectTabs.length > 0 && (
           <div
@@ -659,6 +674,12 @@ function Dashboard() {
             active={activeTab === 'home'}
             onSelectedProjectChange={(id) => { homeSelectedProjectIdRef.current = id; }}
           />
+        </div>
+        <div
+          className="h-full overflow-auto"
+          style={{ display: activeTab === 'codeburn' ? 'block' : 'none' }}
+        >
+          <CodeburnPanel />
         </div>
         {projectTabs.map((tab) => {
           const tabId = `project-${tab.projectId}`;

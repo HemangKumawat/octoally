@@ -4,6 +4,7 @@ import { getDb } from '../db/index.js';
 import { getEvents } from '../services/event-store.js';
 import * as sessionManager from '../services/session-manager.js';
 import { nanoid } from 'nanoid';
+import { codeburnRouter } from './routers/codeburn.js';
 
 export const appRouter = router({
   // Projects
@@ -89,6 +90,9 @@ export const appRouter = router({
         });
       }),
   }),
+
+  // Codeburn
+  codeburn: codeburnRouter,
 
   // Health
   health: publicProcedure.query(() => ({
