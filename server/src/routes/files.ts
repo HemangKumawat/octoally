@@ -195,6 +195,10 @@ export const fileRoutes: FastifyPluginAsync = async (app) => {
     if (!targetPath) return reply.status(400).send({ error: 'path is required' });
     const resolved = resolve(targetPath);
 
+    if (!isPathAllowed(resolved)) {
+      return reply.status(403).send({ error: 'Access denied: path is outside registered project directories' });
+    }
+
     try {
       await stat(resolved);
     } catch {
@@ -225,6 +229,10 @@ export const fileRoutes: FastifyPluginAsync = async (app) => {
 
     const resolvedSrc = resolve(targetPath);
     const dest = join(dirname(resolvedSrc), newName);
+
+    if (!isPathAllowed(resolvedSrc) || !isPathAllowed(dest)) {
+      return reply.status(403).send({ error: 'Access denied: path is outside registered project directories' });
+    }
 
     try {
       await stat(resolvedSrc);
@@ -260,6 +268,10 @@ export const fileRoutes: FastifyPluginAsync = async (app) => {
     const resolvedSrc = resolve(src);
     const resolvedDestDir = resolve(destDir);
     const dest = join(resolvedDestDir, basename(resolvedSrc));
+
+    if (!isPathAllowed(resolvedSrc) || !isPathAllowed(resolvedDestDir) || !isPathAllowed(dest)) {
+      return reply.status(403).send({ error: 'Access denied: path is outside registered project directories' });
+    }
 
     if (resolvedSrc === dest) {
       return reply.status(400).send({ error: 'Source and destination are the same' });
@@ -317,6 +329,10 @@ export const fileRoutes: FastifyPluginAsync = async (app) => {
     const resolvedSrc = resolve(src);
     const resolvedDestDir = resolve(destDir);
     const dest = join(resolvedDestDir, basename(resolvedSrc));
+
+    if (!isPathAllowed(resolvedSrc) || !isPathAllowed(resolvedDestDir) || !isPathAllowed(dest)) {
+      return reply.status(403).send({ error: 'Access denied: path is outside registered project directories' });
+    }
 
     if (resolvedSrc === dest) {
       return reply.status(400).send({ error: 'Source and destination are the same' });
