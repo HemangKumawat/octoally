@@ -5,6 +5,7 @@ import {
   sendReplay,
 } from '../services/session-manager.js';
 import { getDb } from '../db/index.js';
+import { inputAuthEnabled, isInputTokenValid } from '../lib/input-auth.js';
 
 /**
  * Terminal WebSocket route
@@ -22,6 +23,40 @@ export const terminalRoutes: FastifyPluginAsync = async (app) => {
     const { sessionId } = req.params;
     const isPassive = req.query.passive === '1';
     const attempt = req.query.attempt || '?';
+
+    // --- Per-session input authorization (additive / migration-safe) ---
+    // Output/resize/refresh stay unauthenticated so existing read-only
+    // clients are unaffected. Only `input` frames are gated, and only when
+    // OCTOALLY_INPUT_TOKEN is configured. A socket becomes input-authed by
+    // presenting a valid token via the `?inputToken=` query param at connect
+    // OR an `{"type":"auth","token":"..."}` frame any time before sending
+    // input. When input auth is disabled (no env) behaviour is unchanged.
+    let inputAuthed = false;
+    {
+      const reqUrl = req.url || '';
+      const qpMatch = /[?&]inputToken=([^&]+)/.exec(reqUrl);
+      const qpToken = qpMatch ? decodeURIComponent(qpMatch[1]) : null;
+      if (isInputTokenValid(qpToken, sessionId)) inputAuthed = true;
+    }
+    let inputDeniedNotified = false;
+    // Returns true if this socket may write `input` to the PTY. Fail-OPEN
+    // only when input auth is globally disabled (preserves the pre-change
+    // contract for the live fleet); otherwise fail-CLOSED with a one-shot
+    // client notice so dropped keystrokes are never silent.
+    const inputAllowed = (): boolean => {
+      if (!inputAuthEnabled()) return true; // disabled => legacy behaviour
+      if (inputAuthed) return true;
+      if (!inputDeniedNotified) {
+        inputDeniedNotified = true;
+        try {
+          socket.send(JSON.stringify({
+            type: 'input-denied',
+            message: 'Input rejected: terminal socket not authorized to send keystrokes.',
+          }));
+        } catch { /* socket may be closing */ }
+      }
+      return false;
+    };
 
     // Check if this is a pending session that needs to be spawned.
     // Use getPendingSpawn (peek) instead of consume — React StrictMode
@@ -74,10 +109,20 @@ export const terminalRoutes: FastifyPluginAsync = async (app) => {
             return;
           }
 
+          if (msg.type === 'auth') {
+            if (isInputTokenValid(msg.token, sessionId)) {
+              inputAuthed = true;
+              socket.send(JSON.stringify({ type: 'auth-ok' }));
+            } else {
+              socket.send(JSON.stringify({ type: 'auth-failed' }));
+            }
+            return;
+          }
+
           if (spawned) {
             switch (msg.type) {
               case 'input':
-                writeToSession(sessionId, msg.data, msg.paste);
+                if (inputAllowed()) writeToSession(sessionId, msg.data, msg.paste);
                 break;
               case 'resize':
                 resizeSession(sessionId, msg.cols, msg.rows);
@@ -85,7 +130,7 @@ export const terminalRoutes: FastifyPluginAsync = async (app) => {
             }
           }
         } catch {
-          if (spawned) writeToSession(sessionId, raw.toString());
+          if (spawned && inputAllowed()) writeToSession(sessionId, raw.toString());
         }
       });
 
@@ -126,8 +171,16 @@ export const terminalRoutes: FastifyPluginAsync = async (app) => {
         socket.on('message', (raw: Buffer | string) => {
           try {
             const msg = JSON.parse(raw.toString());
-            if (msg.type === 'input') writeToSession(sessionId, msg.data, msg.paste);
-            else if (msg.type === 'refresh') {
+            if (msg.type === 'auth') {
+              if (isInputTokenValid(msg.token, sessionId)) {
+                inputAuthed = true;
+                socket.send(JSON.stringify({ type: 'auth-ok' }));
+              } else {
+                socket.send(JSON.stringify({ type: 'auth-failed' }));
+              }
+            } else if (msg.type === 'input') {
+              if (inputAllowed()) writeToSession(sessionId, msg.data, msg.paste);
+            } else if (msg.type === 'refresh') {
               console.log(`[REFRESH] ${sessionId}: passive client requested capture-pane refresh`);
               sendReplay(sessionId, socket, true);
             }
@@ -165,8 +218,17 @@ export const terminalRoutes: FastifyPluginAsync = async (app) => {
           const msg = JSON.parse(raw.toString());
 
           switch (msg.type) {
+            case 'auth':
+              if (isInputTokenValid(msg.token, sessionId)) {
+                inputAuthed = true;
+                socket.send(JSON.stringify({ type: 'auth-ok' }));
+              } else {
+                socket.send(JSON.stringify({ type: 'auth-failed' }));
+              }
+              break;
+
             case 'input':
-              writeToSession(sessionId, msg.data, msg.paste);
+              if (inputAllowed()) writeToSession(sessionId, msg.data, msg.paste);
               break;
 
             case 'resize':
@@ -182,7 +244,7 @@ export const terminalRoutes: FastifyPluginAsync = async (app) => {
               break;
           }
         } catch {
-          writeToSession(sessionId, raw.toString());
+          if (inputAllowed()) writeToSession(sessionId, raw.toString());
         }
       });
 
