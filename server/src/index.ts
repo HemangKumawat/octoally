@@ -35,7 +35,7 @@ import {
   type FastifyTRPCPluginOptions,
 } from '@trpc/server/adapters/fastify';
 import type { AppRouter } from './trpc/router.js';
-import { killAllSessions, killAllSessionsSync, cleanupStaleRunningSessions, autoReconnectDetachedSessions, getReconnectStatus, startPendingSessionWatchdog } from './services/session-manager.js';
+import { killAllSessions, killAllSessionsSync, cleanupStaleRunningSessions, autoReconnectDetachedSessions, getReconnectStatus, startPendingSessionWatchdog, startStaleRunningReconciler } from './services/session-manager.js';
 import { config } from './config.js';
 import { appendFileSync, writeFileSync, readdirSync, existsSync, readFileSync, rmSync, mkdirSync } from 'fs';
 import { join } from 'path';
@@ -139,6 +139,7 @@ async function start() {
   // Watchdog: auto-fail sessions stuck in "pending" for >90s (e.g. browser closed
   // before WebSocket connected, or spawn command hangs on registry check/npm install)
   startPendingSessionWatchdog();
+  startStaleRunningReconciler();
 
   // Plugins
   await app.register(cors, {

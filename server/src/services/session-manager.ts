@@ -1911,6 +1911,58 @@ export function startPendingSessionWatchdog(): void {
   }, 30_000); // check every 30s
 }
 
+/** Periodic stale-row reconciler.
+ *
+ * SAFETY (load-bearing):
+ *  - DB-write-only. Sends ZERO signals to any process. Only `pidAlive(pid)`
+ *    (which is `kill(pid, 0)` — a syscall that asks the kernel "does this PID
+ *    exist?" and SENDS NOTHING) is used to probe liveness.
+ *  - Demotes ONLY rows whose stored PID is dead OR NULL. Rows with a live PID
+ *    remain `status='running'` untouched. This is the I2 invariant: alive
+ *    sessions are structurally untouchable.
+ *  - This is independent of `cleanupStaleRunningSessions()` (startup-only)
+ *    and `startPendingSessionWatchdog()` (pending→failed only). It exists
+ *    because dead-PID 'running' rows accumulate during long uptimes between
+ *    server restarts.
+ */
+const STALE_RECONCILE_INTERVAL_MS = 60_000; // 60s
+let _staleReconcilerTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startStaleRunningReconciler(): void {
+  if (_staleReconcilerTimer) return;
+  _staleReconcilerTimer = setInterval(() => {
+    try {
+      const db = getDb();
+      // Only inspect rows OctoAlly itself believes are alive but whose PID
+      // is no longer alive. Detached/pending/failed/completed/cancelled rows
+      // are out of scope for this reconciler.
+      const candidates = db.prepare(`
+        SELECT id, pid FROM sessions WHERE status = 'running'
+      `).all() as { id: string; pid: number | null }[];
+
+      let demoted = 0;
+      for (const { id, pid } of candidates) {
+        // I2: alive PID → leave untouched
+        if (pid !== null && pid !== undefined && pidAlive(pid)) continue;
+        // dead PID OR null PID → demote to 'failed' (no 'exited' status in
+        // schema; matches every other dead-detection pattern in this file:
+        // L1741, 1765, 1777, 1787, 1797, 1807, 1897).
+        const res = db.prepare(`
+          UPDATE sessions
+          SET status = 'failed', exit_code = -1,
+              completed_at = COALESCE(completed_at, datetime('now')),
+              updated_at = datetime('now')
+          WHERE id = ? AND status = 'running'
+        `).run(id);
+        if (res.changes > 0) demoted++;
+      }
+      if (demoted > 0) {
+        console.log(`[STALE-RECONCILER] Demoted ${demoted} dead-PID 'running' rows to 'failed'`);
+      }
+    } catch { /* non-fatal — same posture as startPendingSessionWatchdog */ }
+  }, STALE_RECONCILE_INTERVAL_MS);
+}
+
 /**
  * Auto-reconnect all detached sessions (tmux or dtach) after server startup.
  * Now non-blocking: forks a worker per session in parallel.
