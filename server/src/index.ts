@@ -29,6 +29,7 @@ import { skillsRoutes } from './routes/skills.js';
 import { skillSuggestRoutes } from './routes/skill-suggest.js';
 import { magicDocsRoutes } from './routes/magic-docs.js';
 import { permissionsRoutes } from './routes/permissions.js';
+import { presumeRoutes } from './routes/presume.js';
 import { appRouter } from './trpc/router.js';
 import {
   fastifyTRPCPlugin,
@@ -205,6 +206,7 @@ async function start() {
   await app.register(skillSuggestRoutes, { prefix: '/api' });
   await app.register(magicDocsRoutes, { prefix: '/api' });
   await app.register(permissionsRoutes, { prefix: '/api' });
+  await app.register(presumeRoutes, { prefix: '/api' });
   await loadPlugins(app);
 
   // tRPC

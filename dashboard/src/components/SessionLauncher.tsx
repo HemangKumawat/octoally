@@ -314,6 +314,14 @@ export function SessionLauncher({ project, onSessionCreated, onWebPageCreated }:
   const handleLaunch = (task: string, agentType?: string, cliType?: 'claude' | 'codex') => {
     const mode = agentType ? 'agent' : 'session';
     createMutation.mutate({ task, mode, agentType, cliType });
+
+    // Fire-and-forget: emit intent frame into aletheia-state (presume.py)
+    // Errors are swallowed — this must never block or fail the primary launch
+    fetch('/api/presume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idea: task.slice(0, 2000) }),
+    }).catch((err) => console.warn('[presume] fire-and-forget failed:', err));
   };
 
   // Fetch git status for project info (may fail if not a git repo)
