@@ -34,11 +34,13 @@ export const presumeRoutes: FastifyPluginAsync = async (app) => {
     // Fire-and-forget: respond immediately, run presume in background
     reply.status(200).send({ ok: true, queued: true, ts });
 
-    // Background execution — no shell, args array, 120s timeout (ask.sh→Opus can be slow)
+    // Background execution — no shell, args array. 300s timeout: presume.py's
+    // internal ask.sh budget is 250s; the outer timeout must outlive it so the
+    // heuristic-degrade frame still gets written on slow LLM runs.
     execFile(
       'python3',
       [PRESUME_PY, idea],
-      { timeout: 120_000 },
+      { timeout: 300_000 },
       (err, stdout, stderr) => {
         if (err) {
           appendLog(`[${ts}] .failed idea=${idea.slice(0, 80)} err=${err.message}`);
