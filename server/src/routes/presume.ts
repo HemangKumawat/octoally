@@ -8,6 +8,15 @@ const PRESUME_PY = '/home/hemang/aletheia-state/presume.py';
 const LOG_DIR = '/home/hemang/aletheia-state/logs';
 const PRESUME_LOG = join(LOG_DIR, 'presume-octoally.log');
 const MAX_IDEA_CHARS = 2000;
+const MAX_PENDING = 25;
+
+// Serialize background presume runs: concurrent presume.py invocations produced
+// an intermittent non-zero exit (claude-CLI contention, observed 2026-06-11
+// emulator E2E — one of two simultaneous runs failed, idea silently dropped).
+// Ambient idea mode emits utterances seconds apart, so overlap is the normal
+// case, not the edge. Runs execute one at a time in arrival order.
+let pendingCount = 0;
+let presumeChain: Promise<void> = Promise.resolve();
 
 function appendLog(line: string) {
   try {
@@ -37,17 +46,26 @@ export const presumeRoutes: FastifyPluginAsync = async (app) => {
     // Background execution — no shell, args array. 300s timeout: presume.py's
     // internal ask.sh budget is 250s; the outer timeout must outlive it so the
     // heuristic-degrade frame still gets written on slow LLM runs.
-    execFile(
-      'python3',
-      [PRESUME_PY, idea],
-      { timeout: 300_000 },
-      (err, stdout, stderr) => {
-        if (err) {
-          appendLog(`[${ts}] .failed idea=${idea.slice(0, 80)} err=${err.message}`);
-        } else {
-          appendLog(`[${ts}] .ok idea=${idea.slice(0, 80)}`);
+    if (pendingCount >= MAX_PENDING) {
+      appendLog(`[${ts}] .dropped idea=${idea.slice(0, 80)} err=queue full (${MAX_PENDING} pending)`);
+      return;
+    }
+    pendingCount++;
+    presumeChain = presumeChain.then(() => new Promise<void>((resolve) => {
+      execFile(
+        'python3',
+        [PRESUME_PY, idea],
+        { timeout: 300_000 },
+        (err) => {
+          pendingCount--;
+          if (err) {
+            appendLog(`[${ts}] .failed idea=${idea.slice(0, 80)} err=${err.message}`);
+          } else {
+            appendLog(`[${ts}] .ok idea=${idea.slice(0, 80)}`);
+          }
+          resolve();
         }
-      }
-    );
+      );
+    }));
   });
 };
