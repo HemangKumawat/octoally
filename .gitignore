@@ -49,3 +49,5 @@ logs/
 .gitnexus
 .custom-patches/
 .last-update-conflicts.txt
+
+.sentrux/

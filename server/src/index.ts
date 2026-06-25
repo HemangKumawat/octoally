@@ -30,6 +30,7 @@ import { skillSuggestRoutes } from './routes/skill-suggest.js';
 import { magicDocsRoutes } from './routes/magic-docs.js';
 import { permissionsRoutes } from './routes/permissions.js';
 import { presumeRoutes } from './routes/presume.js';
+import { framesRoutes } from './routes/frames.js';
 import { codeburnRoutes } from './routes/codeburn.js';
 import { appRouter } from './trpc/router.js';
 import {
@@ -101,6 +102,22 @@ async function start() {
     },
   });
   serverApp = app;
+
+  // Loop 3: tolerate bodyless POSTs. Some endpoints (e.g. POST
+  // /api/frames/:id/scaffold) take NO body, but a client/proxy that still sends
+  // a Content-Type header (application/json, x-www-form-urlencoded) with an
+  // empty body makes Fastify reject it (FST_ERR_CTP_EMPTY_JSON_BODY 400 /
+  // FST_ERR_CTP_INVALID_MEDIA_TYPE 415). This catch-all parser accepts an empty
+  // body for any otherwise-unhandled content type and yields {}, so bodyless
+  // POSTs succeed. Non-empty bodies for unhandled types still error (we only
+  // special-case the empty case), so it does not weaken JSON validation.
+  app.addContentTypeParser('*', { parseAs: 'buffer' }, (_req, body: Buffer, done) => {
+    if (!body || body.length === 0) {
+      done(null, {});
+    } else {
+      done(null, body);
+    }
+  });
 
   // Clear timing log for fresh run
   try { writeFileSync('/tmp/octoally-timing.log', ''); } catch {}
@@ -208,6 +225,7 @@ async function start() {
   await app.register(magicDocsRoutes, { prefix: '/api' });
   await app.register(permissionsRoutes, { prefix: '/api' });
   await app.register(presumeRoutes, { prefix: '/api' });
+  await app.register(framesRoutes, { prefix: '/api' });
   await app.register(codeburnRoutes, { prefix: '/api' });
   await loadPlugins(app);
 
