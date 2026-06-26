@@ -622,6 +622,22 @@ function handleInput(data: string, isBracketedPaste = false): void {
 function handleResize(cols: number, rows: number): void {
   if (!ptyProcess) return;
   ptyProcess.resize(cols, rows);
+  // Resizing the attach-client PTY above reliably drives the pane WIDTH, but
+  // tmux leaves the window HEIGHT at its stale value (it won't shrink the window
+  // to a smaller client), so a multi-line statusline drawn at the pane bottom
+  // gets clipped below a shorter browser viewport — and a server restart that
+  // reconnects a 40-row pane into a shorter browser is exactly that case.
+  // Force the tmux window to the browser's exact dimensions so the pane always
+  // matches what the dashboard shows, on first connect AND every reconnect.
+  if (useTmux && currentSessionId) {
+    try {
+      const server = findTmuxServer(currentSessionId) || TMUX_SERVER;
+      execFileSync('tmux', [
+        '-L', server, 'resize-window', '-t', tmuxSessionName(currentSessionId),
+        '-x', String(cols), '-y', String(rows),
+      ], { stdio: 'ignore' });
+    } catch { /* ignore — width-only resize via PTY still applied above */ }
+  }
 }
 
 /** Capture the current tmux pane content (with escape sequences) and send via IPC.
