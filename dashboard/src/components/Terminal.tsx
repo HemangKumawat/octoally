@@ -213,11 +213,60 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
     // Intercept Ctrl+C: copy selection if text is selected, otherwise send SIGINT
     // Also keep Ctrl+Shift+C for backward compat
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      // Robustly copy text to the clipboard. In secure contexts use the async
+      // Clipboard API; on its absence (HTTP / non-localhost, where
+      // navigator.clipboard is undefined) OR on promise-rejection, fall back to
+      // a hidden <textarea> + document.execCommand('copy'). Never throws.
+      const fallbackCopy = (text: string) => {
+        let textarea: HTMLTextAreaElement | null = null;
+        try {
+          textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.style.position = 'fixed';
+          textarea.style.left = '-9999px';
+          textarea.style.top = '0';
+          textarea.setAttribute('readonly', '');
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+        } catch {
+          /* swallow — copy must never throw */
+        } finally {
+          try {
+            if (textarea && textarea.parentNode) {
+              textarea.parentNode.removeChild(textarea);
+            }
+          } catch {
+            /* swallow */
+          }
+        }
+      };
+
+      const copyText = (text: string) => {
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            // writeText can reject (permissions, non-secure context) — fall back.
+            Promise.resolve(navigator.clipboard.writeText(text)).catch(() => {
+              fallbackCopy(text);
+            });
+          } else {
+            fallbackCopy(text);
+          }
+        } catch {
+          fallbackCopy(text);
+        }
+      };
+
+      // Ctrl+C (and Ctrl+Shift+C for backward-compat) with a selection: copy it.
       if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'c' || e.key === 'C') && e.type === 'keydown') {
         const sel = term.getSelection();
         if (sel) {
-          navigator.clipboard.writeText(sel);
-          term.clearSelection();
+          copyText(sel);
+          try {
+            term.clearSelection();
+          } catch {
+            /* swallow */
+          }
           e.preventDefault();
           return false;
         }
