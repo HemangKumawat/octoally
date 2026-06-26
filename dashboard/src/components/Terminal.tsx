@@ -718,7 +718,24 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
         if (fit && term) {
           fit.fit();
           if (!passiveResizeRef.current && w && w.readyState === WebSocket.OPEN) {
-            w.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+            const vcols = term.cols;
+            const vrows = term.rows;
+            w.send(JSON.stringify({ type: 'resize', cols: vcols, rows: vrows }));
+            // Force a redraw on tab-switch: a same-size resize sends no SIGWINCH,
+            // so the app (claude) never re-emits its screen and the browser keeps
+            // a stale frame — e.g. a multi-line statusline that's present in the
+            // tmux pane but missing from the xterm after switching tabs. Toggle
+            // width (cols-1 → cols) to force SIGWINCH → re-emit → pipe-pane pushes
+            // the current screen (statusline included) to the browser. Non-destructive
+            // (no term.reset, scrollback preserved).
+            setTimeout(() => {
+              if (cancelled || w.readyState !== WebSocket.OPEN) return;
+              w.send(JSON.stringify({ type: 'resize', cols: vcols - 1, rows: vrows }));
+              setTimeout(() => {
+                if (cancelled || w.readyState !== WebSocket.OPEN) return;
+                w.send(JSON.stringify({ type: 'resize', cols: vcols, rows: vrows }));
+              }, 50);
+            }, 50);
             // Codex: after resize, send capture-pane refresh for correct display.
             // Raw replay chunks from different widths render garbled for Codex.
             // Debounced so it doesn't stack with the suspension effect's refresh.
