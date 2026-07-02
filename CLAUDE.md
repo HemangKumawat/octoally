@@ -41,3 +41,11 @@ This project is indexed by GitNexus as **octoally** (4317 symbols, 7065 relation
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+## Deploy rule (added 2026-07-02)
+A commit touching `dashboard/src/` or `server/src/` is NOT live until
+`bash /home/hemang/ALETHEIA-NEXUS/scripts/octoally_rebuild.sh` runs (post-commit
+hook warns + drops `.needs-rebuild`). Server TS also needs `npm run build:server`
+first (see memory: octoally rebuild gotcha). Custom commits live on `hemang/custom`
+— `scripts/update-custom.sh` rebases them across upstream updates; snapshot patches
+in `.custom-patches/`.

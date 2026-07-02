@@ -51,3 +51,4 @@ logs/
 .last-update-conflicts.txt
 
 .sentrux/
+.needs-rebuild
