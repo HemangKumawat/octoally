@@ -31,6 +31,11 @@ function sessionEnv(): Record<string, string> {
     TERM: 'xterm-256color',
     OCTOALLY_SESSION: '1',
     HEADLESS_WORKERS_DISABLED: '1',
+    // Keep Claude Code off the alternate screen so the transcript accumulates
+    // in tmux history / xterm scrollback and stays selectable for copy
+    // (alt screen = only the visible frame ever exists; drag-copy truncates).
+    // Codex gets the equivalent via --no-alt-screen in buildSessionCommand.
+    CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN: '1',
   };
 }
 
@@ -133,7 +138,9 @@ async function tmuxCreate(
   // the shell starts — tmux new-session -d inherits from the tmux server's env,
   // not the client's, so the env option on execFileAsync alone isn't enough.
   const envCmd = 'env';
-  const envArgs = ['-u', 'NODE_ENV', '-u', 'PORT', '-u', 'OCTOALLY_API_PORT', '-u', 'OCTOALLY_DASH_PORT'];
+  // Also SET vars here (not only in sessionEnv) — an already-running tmux
+  // server ignores the client env, so this is the deterministic path.
+  const envArgs = ['-u', 'NODE_ENV', '-u', 'PORT', '-u', 'OCTOALLY_API_PORT', '-u', 'OCTOALLY_DASH_PORT', 'CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1'];
   const runArgs = command
     ? [envCmd, ...envArgs, shell, '-i', '-c', `${command}; exec ${shell} -i`]
     : [envCmd, ...envArgs, shell, '-i'];
