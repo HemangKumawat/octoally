@@ -1,19 +1,16 @@
 import { FastifyPluginAsync } from 'fastify';
 import { execFile } from 'child_process';
-import { appendFileSync, mkdirSync, readFileSync, existsSync } from 'fs';
+import { appendFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-const PRESUME_PY = '/home/hemang/aletheia-state/presume.py';
-const FRAMES_JSONL = '/home/hemang/aletheia-state/state/frames.jsonl';
-const ACT_NOTIFY = '/home/hemang/scripts/act-notify.sh';
+const RELAY_PY = '/home/hemang/ALETHEIA-NEXUS/scripts/nexus-relay.py';
 const LOG_DIR = '/home/hemang/aletheia-state/logs';
 const PRESUME_LOG = join(LOG_DIR, 'presume-octoally.log');
 const MAX_IDEA_CHARS = 2000;
-const MAX_PENDING = 25;
 
 // --- Trust keystone (Loop 1): prompt-injection gate -------------------------
-// Reject hostile inputs BEFORE presume.py (and downstream ask.sh -> LLM) ever
-// sees them. The idea is never shell-interpolated, but these patterns are the
+// Reject hostile inputs BEFORE the nexus queue (and the tool-armed executor
+// downstream) ever sees them. Never shell-interpolated, but these patterns are the
 // classic prompt-injection / destructive-intent fingerprints that must not be
 // laundered into an LLM presumption (enochko/jarvis pattern). 400 on match.
 const INJECTION_PATTERNS: { name: string; re: RegExp }[] = [
@@ -36,64 +33,11 @@ function detectInjection(text: string): string | null {
   return null;
 }
 
-// Serialize background presume runs: concurrent presume.py invocations produced
-// an intermittent non-zero exit (claude-CLI contention, observed 2026-06-11
-// emulator E2E — one of two simultaneous runs failed, idea silently dropped).
-// Ambient idea mode emits utterances seconds apart, so overlap is the normal
-// case, not the edge. Runs execute one at a time in arrival order.
-let pendingCount = 0;
-let presumeChain: Promise<void> = Promise.resolve();
-
 function appendLog(line: string) {
   try {
     mkdirSync(LOG_DIR, { recursive: true });
     appendFileSync(PRESUME_LOG, line + '\n');
   } catch { /* non-fatal */ }
-}
-
-// "Jarvis heard you" — fire a Telegram confirmation to Hemang after a frame is
-// written. Reuses scripts/act-notify.sh (sops token + chat_id already wired,
-// adversarial-safe via --data-urlencode). Independent of n8n. Fire-and-forget:
-// a notify failure must NEVER fail the presume run, but it IS logged (no dark
-// failure — Verification-on-Ship: a failed send emits a .notify_failed log).
-function notifyFrameCaptured(ideaRaw: string, confidence: number | null, ts: string) {
-  const conf = (typeof confidence === 'number' && !Number.isNaN(confidence))
-    ? confidence.toFixed(2) : '?';
-  const ideaShort = ideaRaw.length > 140 ? ideaRaw.slice(0, 137) + '…' : ideaRaw;
-  const msg = `🧠 Idea captured: ${ideaShort} (conf ${conf})`;
-  // act-notify.sh "<message>" — message passed as a single argv (never shell-split).
-  execFile('bash', [ACT_NOTIFY, msg], { timeout: 15_000 }, (err, _stdout, stderr) => {
-    if (err) {
-      appendLog(`[${ts}] .notify_failed err=${(err.message || '').slice(0, 120)} stderr=${(stderr || '').trim().slice(0, 120)}`);
-    } else {
-      appendLog(`[${ts}] .notify_sent idea=${ideaShort.slice(0, 60)} conf=${conf}`);
-    }
-  });
-}
-
-// Pull the confidence + idea_raw of the just-written frame. presume.py prints
-// the full frame JSON to stdout; if that parse fails (e.g. degrade noise), fall
-// back to the tail of frames.jsonl. Defensive — confidence is "nice to have",
-// the Telegram still sends with conf '?' if both fail.
-function frameConfidence(stdout: string): number | null {
-  try {
-    const start = stdout.indexOf('{');
-    const end = stdout.lastIndexOf('}');
-    if (start !== -1 && end > start) {
-      const obj = JSON.parse(stdout.slice(start, end + 1));
-      if (obj && typeof obj.confidence === 'number') return obj.confidence;
-    }
-  } catch { /* fall through to file tail */ }
-  try {
-    if (existsSync(FRAMES_JSONL)) {
-      const lines = readFileSync(FRAMES_JSONL, 'utf-8').split('\n').filter((l) => l.trim());
-      if (lines.length) {
-        const obj = JSON.parse(lines[lines.length - 1]);
-        if (obj && typeof obj.confidence === 'number') return obj.confidence;
-      }
-    }
-  } catch { /* give up — return null, notify with conf '?' */ }
-  return null;
 }
 
 export const presumeRoutes: FastifyPluginAsync = async (app) => {
@@ -109,7 +53,7 @@ export const presumeRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ ok: false, error: 'idea was empty after sanitization' });
     }
 
-    // Trust keystone: prompt-injection gate — reject BEFORE presume.py runs.
+    // Trust keystone: prompt-injection gate — reject BEFORE it enters the queue.
     const ts = new Date().toISOString();
     const hit = detectInjection(idea);
     if (hit) {
@@ -128,31 +72,23 @@ export const presumeRoutes: FastifyPluginAsync = async (app) => {
     // Fire-and-forget: respond immediately, run presume in background
     reply.status(200).send({ ok: true, queued: true, ts, device_id: deviceId });
 
-    // Background execution — no shell, args array. 300s timeout: presume.py's
-    // internal ask.sh budget is 250s; the outer timeout must outlive it so the
-    // heuristic-degrade frame still gets written on slow LLM runs.
-    if (pendingCount >= MAX_PENDING) {
-      appendLog(`[${ts}] .dropped idea=${idea.slice(0, 80)} err=queue full (${MAX_PENDING} pending)`);
-      return;
-    }
-    pendingCount++;
-    presumeChain = presumeChain.then(() => new Promise<void>((resolve) => {
-      execFile(
-        'python3',
-        [PRESUME_PY, '--device-id', deviceId, idea],
-        { timeout: 300_000, maxBuffer: 4 * 1024 * 1024 },
-        (err, stdout) => {
-          pendingCount--;
-          if (err) {
-            appendLog(`[${ts}] .failed idea=${idea.slice(0, 80)} err=${err.message}`);
-          } else {
-            appendLog(`[${ts}] .ok idea=${idea.slice(0, 80)}`);
-            // Frame written -> "Jarvis heard you" confirmation to Hemang.
-            notifyFrameCaptured(idea, frameConfidence(stdout || ''), ts);
-          }
-          resolve();
+    // Ingest into the SAME queue Telegram uses (#99348). Was: exec presume.py,
+    // which ran an LLM per utterance, serialized behind a chain — it hung past
+    // its 300s timeout and frames.jsonl went dead on 2026-06-14 while this route
+    // kept answering {queued:true}. The decoder + executor already do framing,
+    // acking and execution; a capture only has to be an append. No shell, args
+    // array, 20s cap — the call is a single file append.
+    execFile(
+      'python3',
+      [RELAY_PY, '--capture', idea, '--source', `voice:${deviceId}`],
+      { timeout: 20_000, maxBuffer: 1024 * 1024, env: { ...process.env, HOME: '/home/hemang' } },
+      (err, stdout, stderr) => {
+        if (err) {
+          appendLog(`[${ts}] .failed idea=${idea.slice(0, 80)} err=${err.message} stderr=${(stderr || '').trim().slice(0, 160)}`);
+        } else {
+          appendLog(`[${ts}] .ok id=${(stdout || '').trim()} idea=${idea.slice(0, 80)}`);
         }
-      );
-    }));
+      }
+    );
   });
 };
