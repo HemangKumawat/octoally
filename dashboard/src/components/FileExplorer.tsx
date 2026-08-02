@@ -226,6 +226,7 @@ function TreeItem({
   node,
   depth,
   onToggle,
+  onNavigate,
   onFileClick,
   onFileDoubleClick,
   onContextMenu,
@@ -238,6 +239,7 @@ function TreeItem({
   node: TreeNode;
   depth: number;
   onToggle: (path: string) => void;
+  onNavigate: (path: string) => void;
   onFileClick: (path: string) => void;
   onFileDoubleClick: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, node: TreeNode) => void;
@@ -273,12 +275,20 @@ function TreeItem({
   function handleClick() {
     if (isRenaming) return;
     if (isDir) {
-      setLoading(true);
-      onToggle(node.fullPath);
-      setTimeout(() => setLoading(false), 500);
+      // Folder name click opens the folder (Windows-style navigate-into);
+      // the chevron handles expand/collapse in place.
+      onNavigate(node.fullPath);
     } else {
       onFileClick(node.fullPath);
     }
+  }
+
+  function handleChevronClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (isRenaming) return;
+    setLoading(true);
+    onToggle(node.fullPath);
+    setTimeout(() => setLoading(false), 500);
   }
 
   function handleDoubleClick() {
@@ -313,13 +323,20 @@ function TreeItem({
         }}
       >
         {isDir ? (
-          loading && !node.loaded ? (
-            <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" style={{ color: 'var(--text-secondary)' }} />
-          ) : node.expanded ? (
-            <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-          ) : (
-            <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-          )
+          <span
+            onClick={handleChevronClick}
+            className="shrink-0 flex items-center"
+            role="button"
+            aria-label={node.expanded ? 'Collapse folder' : 'Expand folder'}
+          >
+            {loading && !node.loaded ? (
+              <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" style={{ color: 'var(--text-secondary)' }} />
+            ) : node.expanded ? (
+              <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+            )}
+          </span>
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
@@ -375,6 +392,7 @@ function TreeItem({
           node={child}
           depth={depth + 1}
           onToggle={onToggle}
+          onNavigate={onNavigate}
           onFileClick={onFileClick}
           onFileDoubleClick={onFileDoubleClick}
           onContextMenu={onContextMenu}
@@ -1041,6 +1059,10 @@ export function FileExplorer({ rootPath, instanceId, refreshFilePath, openFileRe
                 expanded: true,
               })
             );
+          }).catch((err: any) => {
+            // Dark-failure guard: a failed listing must collapse the node and say why.
+            setFileError(err?.message || `Failed to open ${path}`);
+            setTree((prev) => updateNodeInTree(prev, path, { expanded: false }));
           });
           return { ...node, expanded: true };
         }
@@ -1339,6 +1361,7 @@ export function FileExplorer({ rootPath, instanceId, refreshFilePath, openFileRe
             node={node}
             depth={0}
             onToggle={toggleDir}
+            onNavigate={navigateTo}
             onFileClick={handleFileClick}
             onFileDoubleClick={handleFileDoubleClick}
             onContextMenu={openContextMenuFor}
