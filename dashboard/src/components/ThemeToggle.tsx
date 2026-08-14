@@ -10,6 +10,7 @@ const THEMES = [
   { id: 'studio',   label: 'Tasteful Studio',  blurb: 'editorial · serif',    bg: '#f5f2ec', accent: '#c65a3a' },
   { id: 'zen',      label: 'Swiss Minimal',    blurb: 'grid · monochrome',    bg: '#ededea', accent: '#0a0a0a' },
   { id: 'critter',  label: 'Playful Creature', blurb: 'octopus · soft pink',  bg: '#fff1f6', accent: '#ff4d8f' },
+  { id: 'mission',  label: 'Mission Control',  blurb: 'amber chrome · phosphor', bg: '#050608', accent: '#ff7a2f' },
 ] as const;
 
 type ThemeId = (typeof THEMES)[number]['id'];

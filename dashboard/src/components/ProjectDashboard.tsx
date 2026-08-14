@@ -1806,11 +1806,13 @@ export function ProjectDashboard({ onOpenProject, active = true, onSelectedProje
                   key={project.id}
                   ref={isSelected ? selectedCardRef : undefined}
                   data-project-card={idx}
-                  className="rounded-xl border flex flex-col group hover:border-[var(--accent)] transition-colors overflow-hidden cursor-pointer"
+                  className="rounded-lg border flex flex-col group hover:border-[var(--accent)] transition-all overflow-hidden cursor-pointer hover:shadow-lg"
                   style={{
                     background: 'var(--bg-secondary)',
                     borderColor: isSelected ? 'var(--accent)' : 'var(--border)',
-                    boxShadow: isSelected ? '0 0 0 2px var(--accent)' : undefined,
+                    boxShadow: isSelected
+                      ? '0 0 0 2px var(--accent), 0 4px 12px rgba(0, 0, 0, 0.15)'
+                      : '0 1px 3px rgba(0, 0, 0, 0.06)',
                   }}
                   onClick={() => onOpenProject(project.id, project.name)}
                 >

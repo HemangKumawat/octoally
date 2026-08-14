@@ -241,3 +241,67 @@
 /* OctoAlly inherits the same 6 hex palettes but uses different alias names. The light
  * themes need scrollbar darkening since OA also has its own ::-webkit-scrollbar rules
  * (none in index.css today, but xterm.js renders its own; defer scrollbar light-fix). */
+
+/* ─── Mission Control (#99701, ref IG reel DaatWphAted) ──────────────────────
+ * Sibling of the Command Deck block in
+ * /home/hemang/command-deck/frontend/src/lib/themes.css — keep hexes in sync.
+ * Amber = chrome (frames/labels), phosphor green = data, red = the hot track.
+ */
+[data-theme="mission"] {
+  --ds-bg: #050608;
+  --ds-surface: #080b0e;
+  --ds-surface-hi: #0e1318;
+  --ds-surface-lo: #030405;
+  --ds-outline: #6b3a12;
+  --ds-text: #ffb066;
+  --ds-text-dim: #c9762f;
+  --ds-text-mute: #8a552a;
+  --ds-primary: #ff7a2f;
+  --ds-on-primary: #050608;
+  --ds-secondary: #35ff8f;
+  --ds-tertiary: #35ff8f;
+  --ds-accent4: #ffd166;
+  --ds-accent5: #4fc3f7;
+  --ds-chip-bg: rgba(255,122,47,0.10);
+  --ds-danger: #ff3b30;
+  --ds-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  --ds-display: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+
+  --bg-primary: var(--ds-bg);
+  --bg-secondary: var(--ds-surface);
+  --bg-tertiary: var(--ds-surface-hi);
+  --bg3: var(--bg-tertiary);
+  --bg3-skeleton: #4a3a2c; /* ratio≈3.1 vs --bg-secondary #080b0e */
+  --border: var(--ds-outline);
+  --text-primary: var(--ds-text);
+  --text-secondary: var(--ds-text-dim);
+  --text-tertiary: var(--ds-text-mute);
+  --accent: var(--ds-primary);
+  --accent-hover: color-mix(in srgb, var(--ds-primary) 85%, var(--ds-bg));
+  --success: var(--ds-tertiary);
+  --warning: var(--ds-accent4);
+  --error: var(--ds-danger);
+}
+
+/* Tube chrome: scanlines + vignette + slow sweep. One pseudo-element, pointer-events
+ * none, scoped to the theme — no OctoAlly markup depends on it.
+ * ponytail: no bracket-tag panel titles here (OA cards are Tailwind, no .panel hook);
+ * add them if he wants the full reel chrome in OA too. */
+:root[data-theme="mission"] body::after {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 9991;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.28) 1px, rgba(0,0,0,0.28) 3px),
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%),
+    linear-gradient(180deg, transparent 0%, rgba(53,255,143,0.045) 50%, transparent 100%);
+  background-size: 100% 100%, 100% 100%, 100% 220px;
+  background-repeat: repeat, no-repeat, no-repeat;
+  animation: mission-sweep 7s linear infinite;
+}
+@keyframes mission-sweep {
+  from { background-position: 0 0, 0 0, 0 -240px; }
+  to   { background-position: 0 0, 0 0, 0 100vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="mission"] body::after { animation: none; }
+}

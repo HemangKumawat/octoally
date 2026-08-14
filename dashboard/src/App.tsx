@@ -457,11 +457,15 @@ function Dashboard() {
     <div className="h-screen flex flex-col" style={{ background: 'var(--bg-primary)' }}>
       {/* Header */}
       <header
-        className="flex items-center justify-between px-4 py-2 border-b shrink-0"
-        style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
+        className="flex items-center justify-between px-4 py-2.5 border-b shrink-0"
+        style={{
+          borderColor: 'var(--border)',
+          background: 'var(--bg-secondary)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)',
+        }}
       >
-        <div className="flex items-center gap-2">
-          <h1 className="text-base font-bold">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold tracking-tight">
             <span style={{ color: 'var(--ds-secondary, var(--accent))' }}>Octo</span><span style={{ color: 'var(--text-primary)' }}>Ally</span>
           </h1>
           <div className="flex items-center gap-1">
@@ -488,8 +492,8 @@ function Dashboard() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowActiveTerminals(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
-            style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all hover:brightness-110 active:brightness-95"
+            style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
           >
             <Monitor className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Active Sessions</span>
@@ -508,7 +512,7 @@ function Dashboard() {
           <ThemeToggle theme={theme} setTheme={setTheme} />
           <button
             onClick={() => setShowSettings(true)}
-            className="p-1.5 rounded-md transition-colors hover:opacity-80"
+            className="p-1.5 rounded-md transition-all hover:brightness-110 active:brightness-95"
             style={{ color: 'var(--text-secondary)', background: 'transparent' }}
             title="Settings"
           >
@@ -571,8 +575,8 @@ function Dashboard() {
 
       {/* Tab bar */}
       <nav
-        className="flex items-center gap-0.5 px-2 py-1 border-b shrink-0 overflow-x-auto"
-        style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
+        className="flex items-center gap-0.5 px-2 py-1.5 border-b shrink-0 overflow-x-auto"
+        style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)', boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)' }}
       >
         {/* Home tab */}
         <button
