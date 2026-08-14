@@ -18,6 +18,7 @@ export interface SessionState {
   lastActivity: number; // epoch ms
   promptType: PromptType;
   choices: string[] | null;
+  metaTask: string;
 }
 
 export interface ExecuteRequest {
@@ -71,6 +72,43 @@ function detectPrompt(text: string): { type: PromptType; choices: string[] | nul
 }
 
 /* ================================================================
+   Meta-task classification — 1-2 word label for what a terminal is
+   currently doing, derived from recent output. First matching rule
+   wins; 'Running' is the no-match sentinel while output is flowing.
+   ================================================================ */
+
+// Hoisted: onData runs per PTY chunk (hundreds/sec) — don't rebuild the table.
+const META_TASK_RULES: Array<[RegExp, string]> = [
+  [/\b(npm|pnpm|yarn)\s+(run\s+)?build\b|\btsc\b|\bvite build\b|\bwebpack\b/i, 'Building'],
+  [/\b(npm|pnpm|yarn)\s+test\b|\bpytest\b|\bjest\b|\bvitest\b/i, 'Testing'],
+  [/\bgit\s+push\b/i, 'Git push'],
+  [/\bgit\s+commit\b/i, 'Committing'],
+  [/\bgit\s+(pull|fetch|merge|rebase)\b/i, 'Git sync'],
+  [/\b(npm|pnpm|yarn)\s+(install|i)\b|\bpip\s+install\b|\bapt(-get)?\s+install\b/i, 'Installing'],
+  [/\bssh\s+/i, 'SSH'],
+  [/\bdocker\s+(exec|run|compose)\b/i, 'Docker'],
+  [/\b(vim|nvim|nano|emacs)\b/i, 'Editing'],
+  [/\bcurl\s+|wget\s+/i, 'Fetching'],
+  [/\bpython3?\s+\S+\.py\b/i, 'Python'],
+];
+
+// ponytail: command names via output heuristics, not process inspection;
+// read /proc/<pid>/cmdline if this proves too coarse.
+export function classifyMetaTask(
+  recentText: string,
+  cliType?: 'claude' | 'codex',
+): string {
+  if (cliType === 'claude') return 'Claude';
+  if (cliType === 'codex') return 'Codex';
+
+  for (const [pattern, label] of META_TASK_RULES) {
+    if (pattern.test(recentText)) return label;
+  }
+
+  return 'Running';
+}
+
+/* ================================================================
    SessionStateTracker — one per active session
    ================================================================ */
 
@@ -86,6 +124,7 @@ export class SessionStateTracker {
   private _promptType: PromptType = null;
   private _choices: string[] | null = null;
   private _lastActivity: number = Date.now();
+  private _metaTask: string = 'Idle';
   private _outputSinceInput: string = '';
   private _claudeSessionId: string | null = null;
   private _projectPath: string | null = null;
@@ -132,7 +171,12 @@ export class SessionStateTracker {
       lastActivity: this._lastActivity,
       promptType: this._promptType,
       choices: this._choices,
+      metaTask: this._metaTask,
     };
+  }
+
+  get metaTask(): string {
+    return this._metaTask;
   }
 
   get hasPendingExecute(): boolean {
@@ -208,7 +252,7 @@ export class SessionStateTracker {
 
   /* ---- PTY data handler (called from session-manager) ---- */
 
-  onData(data: string): void {
+  onData(data: string, cliType?: 'claude' | 'codex'): void {
     this._lastActivity = Date.now();
     const cleaned = strip(data);
     // Cap output buffer to prevent unbounded memory growth in long-running sessions
@@ -217,6 +261,11 @@ export class SessionStateTracker {
     if (this._outputSinceInput.length > MAX_OUTPUT_BUFFER) {
       this._outputSinceInput = this._outputSinceInput.slice(-MAX_OUTPUT_BUFFER);
     }
+
+    // Classify the meta task from the recent output tail. Output is flowing,
+    // so the no-match sentinel 'Running' is the correct label here; quiescence
+    // resets it to Idle/Waiting. (_outputSinceInput is already ANSI-stripped.)
+    this._metaTask = classifyMetaTask(this._outputSinceInput.slice(-2000), cliType);
 
     // Feed raw data to virtual terminal (synchronous, in-memory only)
     this._vt.write(data);
@@ -411,6 +460,10 @@ export class SessionStateTracker {
     // Detect prompts from the rendered screen (not raw strip-ansi output)
     const screen = this._vt.getScreen();
     const { type, choices } = detectPrompt(screen || this._outputSinceInput);
+
+    // Output stopped — the command-derived label is done. Set before _setState
+    // so state listeners see the fresh label in their snapshot.
+    this._metaTask = type ? 'Waiting' : 'Idle';
 
     if (type) {
       this._promptType = type;

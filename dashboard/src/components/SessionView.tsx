@@ -21,6 +21,7 @@ interface ExplorerInstance {
 interface TerminalInstance {
   id: string; // session ID
   label: string;
+  metaTask?: string; // live label pushed by the server via the terminal WS
 }
 
 type ActiveMode = 'terminal' | 'explorer' | 'events' | 'git';
@@ -367,7 +368,12 @@ export function SessionView({ sessionId, projectPath, projectId: _projectId, onE
                     ) : (
                       <FolderTree className="w-3 h-3 shrink-0" style={{ color: 'var(--accent)' }} />
                     )}
-                    <span className="truncate">{inst.label}</span>
+                    <span className="truncate">
+                      {inst.label}
+                      {'metaTask' in inst && inst.metaTask && inst.metaTask !== 'Idle'
+                        ? ` · ${inst.metaTask}`
+                        : ''}
+                    </span>
                   </button>
                   {canClose && (
                     <button
@@ -422,6 +428,11 @@ export function SessionView({ sessionId, projectPath, projectId: _projectId, onE
                 hideCursor
                 onExit={term.id === sessionId && onExit ? () => onExit() : undefined}
                 onReconnect={() => reconnectTerminal(term.id)}
+                onMetaTask={(metaTask) => {
+                  setTerminalInstances((prev) =>
+                    prev.map((t) => (t.id === term.id ? { ...t, metaTask } : t)),
+                  );
+                }}
               />
             </div>
           ))}

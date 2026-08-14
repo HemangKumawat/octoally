@@ -48,13 +48,17 @@ interface TerminalProps {
   onExit?: (exitCode: number) => void;
   onReconnect?: () => void;
   onPopOut?: () => void;
+  /** Live 1-2 word meta-task label pushed by the server (see classifyMetaTask) */
+  onMetaTask?: (metaTask: string) => void;
 }
 
-export function Terminal({ sessionId, visible = true, suspended = false, passiveResize = false, hideCursor = false, cliType, onExit, onReconnect, onPopOut }: TerminalProps) {
+export function Terminal({ sessionId, visible = true, suspended = false, passiveResize = false, hideCursor = false, cliType, onExit, onReconnect, onPopOut, onMetaTask }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const webglRef = useRef<WebglAddon | null>(null);
+  const webglLossCountRef = useRef(0);
   const [connected, setConnected] = useState(false);
   const [autoRecovering, setAutoRecovering] = useState(false);
 
@@ -77,6 +81,8 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
   hideCursorRef.current = hideCursor;
   const cliTypeRef = useRef(cliType);
   cliTypeRef.current = cliType;
+  const onMetaTaskRef = useRef(onMetaTask);
+  onMetaTaskRef.current = onMetaTask;
   // Debounce timer for Codex capture-pane refreshes — prevents multiple
   // effects (suspension + visible) from stacking duplicate captures.
   const codexRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,6 +97,9 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
     if (!term) return;
     const fit = fitRef.current;
     const w = wsRef.current;
+    // Heal glyphs blanked by canvas backing-store eviction before anything else
+    // — this alone fixes blank cells without needing a server round-trip.
+    webglRef.current?.clearTextureAtlas();
     if (fit) fit.fit();
 
     if (!w || w.readyState !== WebSocket.OPEN) {
@@ -101,36 +110,42 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
       return;
     }
 
-    if (cliTypeRef.current === 'codex') {
-      // Codex doesn't redraw on SIGWINCH. Send resize so tmux pane matches
-      // our width, then clear and request a capture-pane refresh.
+    // One path for every CLI: sync the PTY to our real size, then reset the
+    // client buffer and ask the server for a tmux capture-pane render.
+    //
+    // This replaces a `cols-1` -> `cols` SIGWINCH toggle that used to run for
+    // Claude sessions. That toggle resized only the PTY — nothing resizes xterm
+    // client-side — so tmux laid out repaints for cols-1 into a cols-wide
+    // client, then diff-repainted back and skipped cells it believed unchanged.
+    // The resulting holes were recorded into the server's raw replay buffer and
+    // replayed verbatim on every reconnect, which is why they survived a browser
+    // reload while `tmux capture-pane` stayed clean. The server documents this
+    // class itself: "raw replay of chunks recorded at a different width produces
+    // garbled output" (session-manager.ts:1172-1174). capture-pane renders from
+    // tmux's own correct buffer at the current width, so it is lossless.
+    //
+    // Repair primitive: nudge ROWS, never cols. A rows-only change still fires a
+    // real SIGWINCH (so a full-screen TUI re-lays out its whole UI at the true
+    // width) while leaving the width untouched, so tmux never reflows scrollback
+    // — it is categorically not the banned cols-toggle. It also defeats a server
+    // whose belief about the geometry has drifted from tmux's truth: applyResize
+    // drops any resize equal to its remembered cols/rows (session-manager.ts),
+    // and rows-1 always differs, so the follow-up assertion of the true size
+    // gets through and the worker re-asserts BOTH dimensions.
+    //
+    // TIMING IS LOAD-BEARING: resizeSession coalesces anything inside
+    // RESIZE_SETTLE_MS (120ms) into a single final-size apply, which would make
+    // the nudge vanish silently. Keep these sends >120ms apart.
+    w.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: Math.max(2, term.rows - 1) }));
+    setTimeout(() => {
+      if (w.readyState !== WebSocket.OPEN) return;
       w.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
       setTimeout(() => {
         if (w.readyState !== WebSocket.OPEN) return;
         term.reset();
         w.send(JSON.stringify({ type: 'refresh' }));
-      }, 300);
-      return;
-    }
-
-    if (hideCursorRef.current) {
-      // Claude session/agent: reset first to clear stacked renders, then
-      // SIGWINCH-toggle so Claude redraws into the now-clean buffer.
-      term.reset();
-      const cols = term.cols;
-      const rows = term.rows;
-      w.send(JSON.stringify({ type: 'resize', cols: cols - 1, rows }));
-      setTimeout(() => {
-        if (w.readyState !== WebSocket.OPEN) return;
-        w.send(JSON.stringify({ type: 'resize', cols, rows }));
-      }, 100);
-      return;
-    }
-
-    // Plain terminal — reconnect for a fresh server replay.
-    term.reset();
-    disconnectFnRef.current?.();
-    setTimeout(() => connectFnRef.current?.(), 50);
+      }, 350);
+    }, 200);
   }, []);
 
   useEffect(() => {
@@ -177,15 +192,31 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
     // WebGL renderer — faster glyph rendering via GPU. Causes ~10% idle CPU
     // in Tauri/WebKitGTK (compositor polls GL surfaces at vsync), but
     // Chromium (Electron/browser) handles idle GL contexts properly.
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose();
-      });
-      term.loadAddon(webglAddon);
-    } catch {
-      // WebGL not available, canvas2d renderer is the default fallback
-    }
+    // On context loss the addon's own dispose() swaps the DOM renderer back in
+    // (WebglAddon.ts:90-97), so the terminal never goes blank — it just loses
+    // GPU rendering permanently. Recreate it (capped) so a driver reset or GPU
+    // sleep doesn't silently downgrade a long-lived operator terminal forever.
+    let webglRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    const loadWebgl = () => {
+      try {
+        const addon = new WebglAddon();
+        addon.onContextLoss(() => {
+          addon.dispose();
+          webglRef.current = null;
+          webglLossCountRef.current += 1;
+          if (webglLossCountRef.current <= 2) {
+            webglRetryTimer = setTimeout(loadWebgl, 1000);
+          } else {
+            console.warn('[octoally] WebGL context lost repeatedly; staying on DOM renderer');
+          }
+        });
+        term.loadAddon(addon);
+        webglRef.current = addon;
+      } catch {
+        // WebGL not available, DOM renderer is the default fallback
+      }
+    };
+    loadWebgl();
 
     // Make URLs in terminal output clickable — open in system browser
     term.loadAddon(new WebLinksAddon((event, url) => {
@@ -427,26 +458,10 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
         term.focus();
         notifyServerAlive();
 
-        // Force tmux reflow: resize to cols-1 then back to correct width.
-        // Only for sessions (hideCursor=true) where CLI redraws
-        // on SIGWINCH. Plain terminals (bash) don't redraw old output, so
-        // force-resize just corrupts the tmux pane history via lossy reflow.
-        // SKIP for Codex: Codex TUI redraws accumulate in tmux scrollback,
-        // causing capture-pane to show duplicate output.
-        if (!passiveResizeRef.current && hideCursorRef.current && cliTypeRef.current !== 'codex') {
-          const cols = term.cols;
-          const rows = term.rows;
-          setTimeout(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'resize', cols: cols - 1, rows }));
-              setTimeout(() => {
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({ type: 'resize', cols, rows }));
-                }
-              }, 100);
-            }
-          }, 200);
-        }
+        // No forced reflow on connect. Attaching already sends a full replay,
+        // and the old cols-1 -> cols toggle fired 200ms later — landing mid
+        // replay, interleaving resize markers with replayed chunks and recording
+        // wrong-width repaints into the server's replay buffer.
       };
 
       ws.onmessage = (event) => {
@@ -468,6 +483,10 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
               if (rafId === null) {
                 rafId = requestAnimationFrame(flushWrite);
               }
+              break;
+            case 'meta_task':
+              // Socket is per-session, so no sessionId check needed (matches 'output')
+              if (typeof msg.metaTask === 'string') onMetaTaskRef.current?.(msg.metaTask);
               break;
             case 'exit':
               if (msg.reason === 'popped-out') {
@@ -589,24 +608,15 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
         if (!passiveResizeRef.current) {
           const w = wsRef.current;
           if (w && w.readyState === WebSocket.OPEN) {
+            // A real geometry change already delivers SIGWINCH, which is what
+            // makes the CLI redraw — the old cols-1/cols toggle here was pure
+            // redundancy that reflowed the scrollback twice per resize and
+            // persisted two RESIZE_MARKERs into the replay stream.
             w.send(JSON.stringify({
               type: 'resize',
               cols: term.cols,
               rows: term.rows,
             }));
-            // Force PTY redraw via SIGWINCH toggle
-            const cols = term.cols;
-            const rows = term.rows;
-            setTimeout(() => {
-              if (w.readyState === WebSocket.OPEN) {
-                w.send(JSON.stringify({ type: 'resize', cols: cols - 1, rows }));
-                setTimeout(() => {
-                  if (w.readyState === WebSocket.OPEN) {
-                    w.send(JSON.stringify({ type: 'resize', cols, rows }));
-                  }
-                }, 50);
-              }
-            }, 50);
           } else {
             // WS not open yet — send when it connects
             pendingResize = true;
@@ -642,6 +652,8 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
       if (reconnectTimer !== null) clearTimeout(reconnectTimer);
       if (autoRecoveryTimer !== null) clearTimeout(autoRecoveryTimer);
       if (resizeTimer) clearTimeout(resizeTimer);
+      if (webglRetryTimer) clearTimeout(webglRetryTimer);
+      webglRef.current = null;
       resizeObserver.disconnect();
       pasteTarget.removeEventListener('paste', pasteHandler, { capture: true } as EventListenerOptions);
       wsRef.current?.close();
@@ -649,6 +661,26 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
       term.dispose();
     };
   }, [sessionId, onExit]);
+
+  // Rebuild the WebGL glyph atlas when the tab becomes visible again.
+  //
+  // Chromium discards 2D-canvas backing stores under GPU memory pressure and
+  // while a tab is backgrounded. xterm's glyph cache still believes those
+  // glyphs live at their old atlas coordinates, so the next newly-rasterized
+  // glyph bumps activePage.version (TextureAtlas.ts:919) and uploads the now
+  // blank canvas over a good GL texture (GlyphRenderer.ts:359-384) — already
+  // painted text turns into blank cells with the columns preserved, and stays
+  // that way until the atlas is rebuilt. Clearing on tab-return heals it; only
+  // on-screen glyphs are re-rasterized, lazily, within one frame.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        requestAnimationFrame(() => webglRef.current?.clearTextureAtlas());
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   // Suspension effect: disconnect WebSocket when suspended, reconnect when resumed.
   // This ensures only one Terminal connects to a given session at a time.
@@ -722,13 +754,10 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
     if (term.options.fontSize !== configuredFontSize) {
       term.options.fontSize = configuredFontSize;
       fit?.fit();
-      // Notify PTY of new dimensions and force redraw via SIGWINCH toggle
+      // A font-size change alters cols/rows for real, so this single resize is a
+      // genuine SIGWINCH and the CLI redraws on its own. No width toggle.
       if (w && w.readyState === WebSocket.OPEN) {
         w.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-        setTimeout(() => {
-          w.send(JSON.stringify({ type: 'resize', cols: term.cols - 1, rows: term.rows }));
-          setTimeout(() => w.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows })), 50);
-        }, 50);
       }
     }
   }, [configuredFontSize]);
@@ -790,20 +819,21 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
             const vcols = term.cols;
             const vrows = term.rows;
             w.send(JSON.stringify({ type: 'resize', cols: vcols, rows: vrows }));
-            // Force a redraw on tab-switch: a same-size resize sends no SIGWINCH,
-            // so the app (claude) never re-emits its screen and the browser keeps
-            // a stale frame — e.g. a multi-line statusline that's present in the
-            // tmux pane but missing from the xterm after switching tabs. Toggle
-            // width (cols-1 → cols) to force SIGWINCH → re-emit → pipe-pane pushes
-            // the current screen (statusline included) to the browser. Non-destructive
-            // (no term.reset, scrollback preserved).
+            // Refresh the frame on tab-switch: a same-size resize sends no
+            // SIGWINCH, so the app never re-emits its screen and the browser can
+            // keep a stale frame — e.g. a multi-line statusline that's present in
+            // the tmux pane but missing from the xterm after switching tabs.
+            //
+            // This used to toggle width (cols-1 → cols) to provoke a SIGWINCH.
+            // That lied to tmux about our width: xterm is never resized
+            // client-side, so tmux laid out repaints for the wrong width and then
+            // diff-repainted back, skipping cells it believed unchanged — and the
+            // holes were recorded into the server's replay buffer, surviving
+            // reloads. Ask tmux for its current screen instead: capture-pane is
+            // lossless at the real width and needs no fake resize.
             setTimeout(() => {
               if (cancelled || w.readyState !== WebSocket.OPEN) return;
-              w.send(JSON.stringify({ type: 'resize', cols: vcols - 1, rows: vrows }));
-              setTimeout(() => {
-                if (cancelled || w.readyState !== WebSocket.OPEN) return;
-                w.send(JSON.stringify({ type: 'resize', cols: vcols, rows: vrows }));
-              }, 50);
+              w.send(JSON.stringify({ type: 'refresh' }));
             }, 50);
             // Codex: after resize, send capture-pane refresh for correct display.
             // Raw replay chunks from different widths render garbled for Codex.
@@ -927,12 +957,8 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
                   term.options.fontSize = current - 1;
                   fit?.fit();
                   if (w && w.readyState === WebSocket.OPEN) {
+                    // Real geometry change → real SIGWINCH → the CLI redraws.
                     w.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-                    // Force PTY redraw via SIGWINCH toggle
-                    setTimeout(() => {
-                      w.send(JSON.stringify({ type: 'resize', cols: term.cols - 1, rows: term.rows }));
-                      setTimeout(() => w.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows })), 50);
-                    }, 50);
                   }
                 }
               }}
@@ -953,11 +979,8 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
                   term.options.fontSize = current + 1;
                   fit?.fit();
                   if (w && w.readyState === WebSocket.OPEN) {
+                    // Real geometry change → real SIGWINCH → the CLI redraws.
                     w.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-                    setTimeout(() => {
-                      w.send(JSON.stringify({ type: 'resize', cols: term.cols - 1, rows: term.rows }));
-                      setTimeout(() => w.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows })), 50);
-                    }, 50);
                   }
                 }
               }}

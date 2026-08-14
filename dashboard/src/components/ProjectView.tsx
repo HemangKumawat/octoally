@@ -37,6 +37,7 @@ interface ExplorerInstance {
 interface TerminalInstance {
   id: string; // session ID
   label: string;
+  metaTask?: string; // live label pushed by the server via the terminal WS
 }
 
 interface WebPageInstance {
@@ -1016,7 +1017,10 @@ export function ProjectView({ projectId, projectPath, projectName: _projectName,
                             </>
                           );
                         })()}
-                        <span className="truncate">{inst.label}</span>
+                        <span className="truncate">
+                          {inst.label}
+                          {inst.metaTask && inst.metaTask !== 'Idle' ? ` · ${inst.metaTask}` : ''}
+                        </span>
                       </button>
                       <button
                         onClick={(e) => {
@@ -1600,11 +1604,16 @@ export function ProjectView({ projectId, projectPath, projectName: _projectName,
                               sessionId={term.id}
                               visible={termVisible}
                               suspended={terminalsSuspended || (!gridMode && !termVisible)}
-                              passiveResize={gridMode && !isExpanded && projectSessions.find((s) => s.id === term.id)?.task === 'Terminal'}
+                              passiveResize={gridMode && !isExpanded}
                               hideCursor={projectSessions.find((s) => s.id === term.id)?.task !== 'Terminal' && projectSessions.some((s) => s.id === term.id)}
                               cliType={sessionLookup.get(term.id)?.cli_type as 'claude' | 'codex' | undefined}
                               onReconnect={() => reconnectTerminal(term.id)}
                               onPopOut={() => closeTerminalTab(term.id)}
+                              onMetaTask={(metaTask) => {
+                                setTerminalInstances((prev) =>
+                                  prev.map((t) => (t.id === term.id ? { ...t, metaTask } : t)),
+                                );
+                              }}
                             />
                           )}
                         </div>

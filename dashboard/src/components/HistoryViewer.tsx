@@ -54,13 +54,24 @@ export function HistoryViewer({ sessionId, onClose }: HistoryViewerProps) {
     term.loadAddon(fitAddon);
     term.open(termContainerRef.current);
 
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => webglAddon.dispose());
-      term.loadAddon(webglAddon);
-    } catch {
-      // WebGL not available, canvas2d fallback
-    }
+    // Capped recreate on context loss — dispose() alone restores the DOM
+    // renderer but never returns to GPU. Same class as Terminal.tsx.
+    let webglRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let webglLosses = 0;
+    const loadWebgl = () => {
+      try {
+        const addon = new WebglAddon();
+        addon.onContextLoss(() => {
+          addon.dispose();
+          webglLosses += 1;
+          if (webglLosses <= 2) webglRetryTimer = setTimeout(loadWebgl, 1000);
+        });
+        term.loadAddon(addon);
+      } catch {
+        // WebGL not available, DOM renderer fallback
+      }
+    };
+    loadWebgl();
 
     termRef.current = term;
     fitRef.current = fitAddon;
@@ -90,6 +101,7 @@ export function HistoryViewer({ sessionId, onClose }: HistoryViewerProps) {
     });
 
     return () => {
+      if (webglRetryTimer) clearTimeout(webglRetryTimer);
       resizeObserver.disconnect();
       term.dispose();
       termRef.current = null;

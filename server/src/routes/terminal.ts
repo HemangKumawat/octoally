@@ -2,10 +2,25 @@ import { FastifyPluginAsync } from 'fastify';
 import {
   attachTerminal, writeToSession, resizeSession, reconnectSession,
   getPendingSpawn, consumePendingSpawn, spawnSession, spawnTerminal, spawnAdopt, spawnAgent,
-  sendReplay,
+  sendReplay, isSessionActive, readRecentOutput,
 } from '../services/session-manager.js';
 import { getDb } from '../db/index.js';
 import { inputAuthEnabled, isInputTokenValid } from '../lib/input-auth.js';
+import { strip } from '../lib/ansi.js';
+import { getTracker } from '../services/session-state.js';
+
+interface TerminalListRow {
+  id: string;
+  task: string | null;
+  projectId: string | number | null;
+  projectName: string | null;
+  projectPath: string | null;
+  status: string;
+  pid: number | null;
+  cliType: string | null;
+  startedAt: string | number | null;
+  updatedAt: string | number | null;
+}
 
 /**
  * Terminal WebSocket route
@@ -16,6 +31,59 @@ import { inputAuthEnabled, isInputTokenValid } from '../lib/input-auth.js';
  * ensures tmux is created at the exact right size — no resize/redraw needed.
  */
 export const terminalRoutes: FastifyPluginAsync = async (app) => {
+  // REST: live terminals with process state + meta-task label.
+  // Plugin is registered with prefix '/api', so these serve /api/terminals.
+  // Consumed by mcp-server/server.ts. Same (open) auth as neighboring GETs.
+  app.get('/terminals', async () => {
+    const rows = getDb().prepare(`
+      SELECT
+        s.id,
+        s.task,
+        s.project_id AS projectId,
+        p.name AS projectName,
+        p.path AS projectPath,
+        s.status,
+        s.pid,
+        s.cli_type AS cliType,
+        s.started_at AS startedAt,
+        s.updated_at AS updatedAt
+      FROM sessions s
+      LEFT JOIN projects p ON p.id = s.project_id
+      WHERE s.status IN ('pending', 'launching', 'running', 'detached')
+      ORDER BY s.started_at DESC
+    `).all() as TerminalListRow[];
+
+    return rows.map((row) => {
+      const state = isSessionActive(row.id) ? getTracker(row.id)?.state : undefined;
+      return {
+        ...row,
+        processState: state?.processState ?? null,
+        metaTask: state?.metaTask ?? 'Idle',
+      };
+    });
+  });
+
+  // REST: recent ANSI-stripped output tail for one terminal (serves /api/terminals/:id/output)
+  app.get<{
+    Params: { id: string };
+    Querystring: { lines?: string };
+  }>('/terminals/:id/output', async (request, reply) => {
+    const { id } = request.params;
+
+    if (!getDb().prepare('SELECT id FROM sessions WHERE id = ?').get(id)) {
+      return reply.code(404).send({ error: 'Terminal not found' });
+    }
+
+    const lines = request.query.lines === undefined ? 200 : Number(request.query.lines);
+    if (!Number.isSafeInteger(lines) || lines < 1 || lines > 2000) {
+      return reply.code(400).send({ error: 'lines must be an integer between 1 and 2000' });
+    }
+
+    // Chunks can span multiple lines — read `lines` chunks, then cap by real lines.
+    const text = strip(readRecentOutput(id, lines).join(''));
+    return { output: text.split('\n').slice(-lines).join('\n') };
+  });
+
   app.get<{
     Params: { sessionId: string };
     Querystring: { passive?: string; attempt?: string };

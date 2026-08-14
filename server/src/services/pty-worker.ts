@@ -31,11 +31,12 @@ function sessionEnv(): Record<string, string> {
     TERM: 'xterm-256color',
     OCTOALLY_SESSION: '1',
     HEADLESS_WORKERS_DISABLED: '1',
-    // Keep Claude Code off the alternate screen so the transcript accumulates
-    // in tmux history / xterm scrollback and stays selectable for copy
-    // (alt screen = only the visible frame ever exists; drag-copy truncates).
-    // Codex gets the equivalent via --no-alt-screen in buildSessionCommand.
-    CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN: '1',
+    // REVERTED 2026-07-11: CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 (added
+    // 2026-07-09 for drag-copy) broke the composer — CC has no pinned-input
+    // scrollback mode (verified: no --minimal/scrollback-native in 2.1.206),
+    // so under heavy output the input bar overdraws the transcript and the
+    // cursor lands mid-text (screenshot-confirmed). Stable typing > drag-copy;
+    // transcript copy paths remain: /export, tmux capture-pane, term-mirror.
   };
 }
 
@@ -140,7 +141,9 @@ async function tmuxCreate(
   const envCmd = 'env';
   // Also SET vars here (not only in sessionEnv) — an already-running tmux
   // server ignores the client env, so this is the deterministic path.
-  const envArgs = ['-u', 'NODE_ENV', '-u', 'PORT', '-u', 'OCTOALLY_API_PORT', '-u', 'OCTOALLY_DASH_PORT', 'CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1'];
+  // (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 removed 2026-07-11 — broke the
+  // composer; see sessionEnv comment. -u strips it from inherited tmux env.)
+  const envArgs = ['-u', 'NODE_ENV', '-u', 'PORT', '-u', 'OCTOALLY_API_PORT', '-u', 'OCTOALLY_DASH_PORT', '-u', 'CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN'];
   const runArgs = command
     ? [envCmd, ...envArgs, shell, '-i', '-c', `${command}; exec ${shell} -i`]
     : [envCmd, ...envArgs, shell, '-i'];
@@ -580,30 +583,36 @@ async function handleAdopt(msg: AdoptMessage): Promise<void> {
     wireOutput();
     send({ type: 'ready', pid: ptyProcess.pid });
 
-    // Force a redraw: -r none starts blank, so do a cols-1→cols resize trick
-    // to trigger SIGWINCH through dtach, making the app re-render its screen.
+    // Force a redraw: -r none starts blank, so provoke a SIGWINCH through dtach
+    // to make the app re-render. Nudge ROWS, not cols: a width toggle makes tmux
+    // reflow the pane at the wrong width and diff-repaint back, skipping cells it
+    // believes unchanged — holes that then get recorded into the replay buffer and
+    // replayed on every reconnect. Rows-only is a real SIGWINCH with no reflow.
     // Delay to let pipe-pane fully initialize and start capturing.
     setTimeout(() => {
+      const nudgeRows = Math.max(2, msg.rows - 1);
       if (ptyProcess && msg.useTmux) {
         try {
           execFileSync('tmux', [
-            ...tmuxBaseArgs, 'resize-pane', '-t', tmuxSessionName(msg.sessionId), '-x', String(msg.cols - 1),
+            ...tmuxBaseArgs, 'resize-window', '-t', tmuxSessionName(msg.sessionId),
+            '-x', String(msg.cols), '-y', String(nudgeRows),
           ], { stdio: 'ignore' });
           setTimeout(() => {
             try {
               execFileSync('tmux', [
-                ...tmuxBaseArgs, 'resize-pane', '-t', tmuxSessionName(msg.sessionId), '-x', String(msg.cols),
+                ...tmuxBaseArgs, 'resize-window', '-t', tmuxSessionName(msg.sessionId),
+                '-x', String(msg.cols), '-y', String(msg.rows),
               ], { stdio: 'ignore' });
             } catch { /* ignore */ }
-          }, 50);
+          }, 150);
         } catch { /* ignore */ }
       } else if (ptyProcess) {
-        // Non-tmux: resize the PTY directly
+        // Non-tmux: resize the PTY directly, rows-only.
         try {
-          ptyProcess.resize(msg.cols - 1, msg.rows);
+          ptyProcess.resize(msg.cols, nudgeRows);
           setTimeout(() => {
             try { ptyProcess!.resize(msg.cols, msg.rows); } catch { /* ignore */ }
-          }, 50);
+          }, 150);
         } catch { /* ignore */ }
       }
     }, 300);
@@ -643,7 +652,19 @@ function handleResize(cols: number, rows: number): void {
         '-L', server, 'resize-window', '-t', tmuxSessionName(currentSessionId),
         '-x', String(cols), '-y', String(rows),
       ], { stdio: 'ignore' });
-    } catch { /* ignore — width-only resize via PTY still applied above */ }
+    } catch (err) {
+      // Do NOT swallow this. Windows here are `window-size manual`, so
+      // resize-window is the only thing that moves geometry — while the parent
+      // updates its remembered cols/rows regardless of whether this succeeded.
+      // A silent failure therefore leaves belief (say 230) disagreeing with tmux
+      // (say 66), and applyResize then drops every future resize to 230 as a
+      // no-op: the pane is permanently stuck narrow with no way back. That is
+      // the manufacturing path for the stuck-width bug, so make it loud.
+      const msg = err instanceof Error ? err.message : String(err);
+      tlog(`[PTY-WORKER] resize-window FAILED ${currentSessionId} -> ${cols}x${rows}: ${msg}`);
+      console.error(`[PTY-WORKER] resize-window failed for ${currentSessionId} (${cols}x${rows}):`, msg);
+      send({ type: 'error', error: `resize-window failed: ${cols}x${rows}: ${msg}` });
+    }
   }
 }
 

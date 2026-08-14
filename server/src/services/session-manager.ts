@@ -117,8 +117,11 @@ interface ActiveSession {
   subscribers: Set<WebSocket>;
   seq: number; // monotonic counter for pty_output rows
   cols: number; // last known terminal column width
+  rows?: number; // last APPLIED row count — with cols, the settled geometry
+  resizeTimer?: ReturnType<typeof setTimeout>; // pending coalesced resize
   task: string; // 'Terminal' for plain shells, task description for session
   cliType?: 'claude' | 'codex'; // CLI type — Codex needs special capture handling
+  metaTask?: string; // last broadcast meta-task label (see session-state classifyMetaTask)
   externalSocket?: string; // external dtach socket (adopted sessions)
   replayBuffer: string[];  // ring buffer of recent output chunks for instant replay
   replayBytes: number;     // total bytes in replayBuffer
@@ -281,7 +284,7 @@ function prunePtyOutput(): void {
 }
 
 /** Read last N chunks from SQLite for a session, ordered by seq */
-function readRecentOutput(sessionId: string, limit: number): string[] {
+export function readRecentOutput(sessionId: string, limit: number): string[] {
   const db = getDb();
   const rows = db.prepare(
     'SELECT data FROM pty_output WHERE session_id = ? ORDER BY seq DESC LIMIT ?'
@@ -633,6 +636,20 @@ function wireWorker(sessionId: string, worker: ChildProcess, projectPath?: strin
 
   activeSessions.set(sessionId, active);
 
+  // Broadcast the tracker's meta-task label to subscribers when it changes.
+  // Fired from pty-data (label can change busy→busy, e.g. Building→Testing)
+  // AND from state changes (quiescence flips it to Idle/Waiting with no pty data).
+  function broadcastMetaTask(): void {
+    const metaTask = tracker.state.metaTask;
+    if (active.metaTask === metaTask) return;
+    active.metaTask = metaTask;
+    const payload = JSON.stringify({ type: 'meta_task', sessionId, metaTask });
+    for (const ws of active.subscribers) {
+      try { ws.send(payload); } catch { active.subscribers.delete(ws); }
+    }
+  }
+  tracker.onStateChange(() => broadcastMetaTask());
+
   // Track Claude session UUID — persist to DB once found
   let uuidPersisted = false;
 
@@ -724,8 +741,12 @@ function wireWorker(sessionId: string, worker: ChildProcess, projectPath?: strin
       }
 
       case 'pty-data': {
-        // Raw PTY output for state tracking (not necessarily display output)
-        tracker.onData(msg.data);
+        // Raw PTY output for state tracking (not necessarily display output).
+        // Plain shells classify the meta task from output; Claude/Codex sessions
+        // are labeled by CLI. active.task is the reliable plain-shell signal —
+        // reconnectSession force-sets cliType='claude' even for plain terminals.
+        tracker.onData(msg.data, active.task === 'Terminal' ? undefined : active.cliType);
+        broadcastMetaTask();
         if (!uuidPersisted && tracker.claudeSessionId) {
           persistUuid(tracker.claudeSessionId);
         }
@@ -1154,6 +1175,13 @@ export function attachTerminal(sessionId: string, ws: WebSocket, options?: { ski
     ws.on('close', () => {
       active.subscribers.delete(ws);
     });
+    // Late subscriber: deliver the current meta-task label immediately —
+    // broadcasts only fire on change, which may be long past.
+    if (active.metaTask !== undefined) {
+      try {
+        ws.send(JSON.stringify({ type: 'meta_task', sessionId, metaTask: active.metaTask }));
+      } catch { /* ws closing */ }
+    }
   }
 
   if (!options?.skipReplay) {
@@ -1308,14 +1336,62 @@ export function writeToSession(sessionId: string, data: string, bracketedPaste?:
   return true;
 }
 
+/* Geometry coalescing — the root-cause guard for scrollback corruption.
+ *
+ * Clients have historically "jiggled" the width (cols-1 → cols) as a way to
+ * force a redraw. Every intermediate size makes tmux reflow the ENTIRE
+ * scrollback at the wrong width and back; that reflow is lossy, and each step
+ * also persists a RESIZE_MARKER into the PTY stream, so every later reconnect
+ * replays the jiggle and re-corrupts the history. That is why scrolling and
+ * the composer bar degrade progressively rather than once.
+ *
+ * The invariant enforced here: the PTY only ever sees SETTLED geometry. A
+ * transient size that is superseded within the settle window never reaches
+ * tmux, and a resize that lands on the current size is dropped entirely. This
+ * holds no matter how many call sites jiggle, including ones added later.
+ * ponytail: 120ms settle; raise only if a real resize ever gets swallowed. */
+const RESIZE_SETTLE_MS = 120;
+
 export function resizeSession(sessionId: string, cols: number, rows: number): boolean {
   const active = activeSessions.get(sessionId);
   if (!active) return false;
+  // State lives on the session, so it dies with the session — a restarted
+  // sessionId can never inherit stale geometry and swallow its first resize.
+  if (active.resizeTimer) clearTimeout(active.resizeTimer);
+  active.resizeTimer = setTimeout(() => {
+    delete active.resizeTimer;
+    applyResize(sessionId, cols, rows);
+  }, RESIZE_SETTLE_MS);
+  return true;
+}
+
+function applyResize(sessionId: string, cols: number, rows: number): boolean {
+  const active = activeSessions.get(sessionId);
+  if (!active) return false;
+
+  // Already at this geometry — reflowing to the same size is pure corruption.
+  if (active.cols === cols && active.rows === rows) return true;
+  const colsChanged = active.cols !== cols;
+  active.rows = rows;
 
   // Send resize to the worker process via IPC
   active.worker.send({ type: 'resize', cols, rows });
 
   active.cols = cols;
+
+  // Width changed, so every chunk already in the replay buffer was recorded at
+  // the OLD width. Replaying it raw into a terminal of the new width is the
+  // documented failure mode of sendReplay ("raw replay of chunks recorded at a
+  // different width produces garbled output") and it is what made corruption
+  // survive a browser reload: the poisoned bytes live here in server RAM, not
+  // in the client and not in tmux's pane. Dropping the buffer makes the next
+  // replay fall through to tmux capture-pane, which is always correct at the
+  // current width. Cost: replayable scrollback recorded before this resize is
+  // lost — capture depth becomes whatever requestCapture's -S window gives.
+  if (colsChanged) {
+    active.replayBuffer = [];
+    active.replayBytes = 0;
+  }
 
   // Store resize event in the PTY output stream
   active.seq++;
