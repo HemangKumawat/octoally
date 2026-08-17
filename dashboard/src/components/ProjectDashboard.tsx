@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type Project } from '../lib/api';
@@ -36,6 +36,7 @@ import { Skeleton, SkeletonGroup } from './Skeleton';
 import { ConfirmModal } from './ConfirmModal';
 import { RufloDeprecationModal } from './RufloDeprecationModal';
 import { StatuslinePromptModal } from './StatuslinePromptModal';
+import { ModalShell } from './ModalShell';
 import { useShortcut } from '../lib/shortcuts';
 
 interface ProjectDashboardProps {
@@ -167,6 +168,10 @@ function ProjectForm({
   const [initialClaudeMd, setInitialClaudeMd] = useState('');
   const [initialAgentsMd, setInitialAgentsMd] = useState('');
   const [initialSettingsJson, setInitialSettingsJson] = useState('');
+
+  // Modal IDs for accessibility
+  const claudeMdPreviewTitleId = useId();
+  const agentsMdPreviewTitleId = useId();
 
   const projectPath = path;
 
@@ -735,18 +740,17 @@ function ProjectForm({
                       style={{ ...inputStyle, minHeight: '220px' }}
                     />
                     {claudeMdPreview && (
-                      <div
-                        className="fixed inset-0 z-50 flex items-center justify-center p-8"
-                        style={{ background: 'rgba(0,0,0,0.6)' }}
-                        onClick={() => setClaudeMdPreview(false)}
+                      <ModalShell
+                        onClose={() => setClaudeMdPreview(false)}
+                        labelledBy={claudeMdPreviewTitleId}
+                        className="p-8"
                       >
                         <div
                           className="w-full rounded-xl border flex flex-col"
                           style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', maxWidth: '900px', height: 'calc(100vh - 80px)' }}
-                          onClick={(e) => e.stopPropagation()}
                         >
                           <div className="flex items-center justify-between px-5 py-3 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
-                            <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>CLAUDE.md Preview</span>
+                            <span id={claudeMdPreviewTitleId} className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>CLAUDE.md Preview</span>
                             <button onClick={() => setClaudeMdPreview(false)} className="p-1 rounded hover:bg-white/10" style={{ color: 'var(--text-secondary)' }}>
                               <X className="w-4 h-4" />
                             </button>
@@ -757,7 +761,7 @@ function ProjectForm({
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </ModalShell>
                     )}
                   </div>
 
@@ -790,18 +794,17 @@ function ProjectForm({
                       style={{ ...inputStyle, minHeight: '220px' }}
                     />
                     {agentsMdPreview && (
-                      <div
-                        className="fixed inset-0 z-50 flex items-center justify-center p-8"
-                        style={{ background: 'rgba(0,0,0,0.6)' }}
-                        onClick={() => setAgentsMdPreview(false)}
+                      <ModalShell
+                        onClose={() => setAgentsMdPreview(false)}
+                        labelledBy={agentsMdPreviewTitleId}
+                        className="p-8"
                       >
                         <div
                           className="w-full rounded-xl border flex flex-col"
                           style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', maxWidth: '900px', height: 'calc(100vh - 80px)' }}
-                          onClick={(e) => e.stopPropagation()}
                         >
                           <div className="flex items-center justify-between px-5 py-3 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
-                            <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>AGENTS.md Preview</span>
+                            <span id={agentsMdPreviewTitleId} className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>AGENTS.md Preview</span>
                             <button onClick={() => setAgentsMdPreview(false)} className="p-1 rounded hover:bg-white/10" style={{ color: 'var(--text-secondary)' }}>
                               <X className="w-4 h-4" />
                             </button>
@@ -812,7 +815,7 @@ function ProjectForm({
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </ModalShell>
                     )}
                   </div>
                 </div>
@@ -1190,6 +1193,7 @@ function CreateRepoModal({ projectPath, onClose, onCreated }: {
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const titleId = useId();
   const [repoName, setRepoName] = useState(projectPath.split('/').pop() || '');
   const [isPrivate, setIsPrivate] = useState(true);
   const [defaultBranch, setDefaultBranch] = useState('main');
@@ -1236,21 +1240,20 @@ function CreateRepoModal({ projectPath, onClose, onCreated }: {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={onClose}
+    <ModalShell
+      onClose={onClose}
+      labelledBy={titleId}
+      className="p-0"
     >
       <div
         className="flex flex-col rounded-lg shadow-2xl overflow-hidden"
         style={{ width: '100%', maxWidth: '420px', background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-5 pt-5 pb-2">
           <div className="flex items-center justify-center w-9 h-9 rounded-full shrink-0" style={{ background: '#3b82f620' }}>
             <Github className="w-5 h-5" style={{ color: '#3b82f6' }} />
           </div>
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Create GitHub Repository</h3>
+          <h3 id={titleId} className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Create GitHub Repository</h3>
         </div>
 
         <div className="px-5 py-3 flex flex-col gap-3">
@@ -1354,7 +1357,7 @@ function CreateRepoModal({ projectPath, onClose, onCreated }: {
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 

@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Project, type RufloAgent } from '../lib/api';
 import { Play, Loader2, Bot, TerminalSquare, Globe, Users, X, FolderOpen, GitBranch, Cpu, Activity, FileText, Zap } from 'lucide-react';
 import { ClaudeIcon, CodexIcon } from './CliIcons';
 import { SessionMicButton } from './SessionMicButton';
+import { ModalShell } from './ModalShell';
 
 interface SessionLauncherProps {
   project: Project;
@@ -35,6 +36,7 @@ function TaskModal({
   const [cliType, setCliType] = useState<'claude' | 'codex'>(initialCliType || 'claude');
   const [sessionPrompt, setSessionPrompt] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -56,11 +58,7 @@ function TaskModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
+    <ModalShell onClose={onClose} labelledBy={titleId} className="p-4">
       <div
         className="relative rounded-xl border shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
         style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
@@ -76,7 +74,7 @@ function TaskModal({
             ) : (
               <Zap className="w-5 h-5" style={{ color: '#60a5fa' }} />
             )}
-            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <h2 id={titleId} className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
               {mode === 'agent' ? 'Launch Agent' : 'Launch Session'}
             </h2>
           </div>
@@ -262,7 +260,7 @@ function TaskModal({
           </div>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 

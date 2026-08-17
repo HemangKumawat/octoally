@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { ModalShell } from './ModalShell';
+import { useState, useId } from 'react';
 import { Bot, X, Copy, Check, Play } from 'lucide-react';
 
 export function AgentGuideButton() {
@@ -33,6 +34,7 @@ export function AgentGuideModal({ onClose, projectName, projectPath, task, addit
   const baseUrl = `${window.location.protocol}//${window.location.hostname}:42010`;
   const [copiedAll, setCopiedAll] = useState(false);
   const hasContext = !!(projectName && projectPath);
+  const titleId = useId();
 
   const copyFullGuide = () => {
     const text = hasContext
@@ -44,11 +46,7 @@ export function AgentGuideModal({ onClose, projectName, projectPath, task, addit
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
+    <ModalShell onClose={onClose} labelledBy={titleId} className="p-4">
       <div
         className="relative rounded-xl border shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col"
         style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
@@ -60,7 +58,7 @@ export function AgentGuideModal({ onClose, projectName, projectPath, task, addit
         >
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5" style={{ color: 'var(--accent)' }} />
-            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <h2 id={titleId} className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
               {hasContext ? `Run ${projectName} with OpenClaw` : 'Agent Integration Guide'}
             </h2>
           </div>
@@ -305,7 +303,7 @@ while (true) {
           </Section>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 
