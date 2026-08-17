@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { AlertTriangle, Trash2, Loader2, CheckCircle, ShieldAlert } from 'lucide-react';
+import { ModalShell } from './ModalShell';
 
 interface RufloDeprecationModalProps {
   onClose: () => void;
@@ -35,9 +36,10 @@ export function RufloDeprecationModal({ onClose }: RufloDeprecationModalProps) {
 
   if (result) {
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center"
-        style={{ background: 'rgba(0,0,0,0.6)' }}
+      <ModalShell
+        onClose={onClose}
+        labelledBy="ruflo-completion-title"
+        dismissOnBackdrop={true}
       >
         <div
           className="flex flex-col rounded-xl shadow-2xl overflow-hidden"
@@ -50,7 +52,7 @@ export function RufloDeprecationModal({ onClose }: RufloDeprecationModalProps) {
         >
           <div className="px-6 py-8 text-center">
             <CheckCircle className="w-12 h-12 mx-auto mb-4" style={{ color: '#22c55e' }} />
-            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+            <h3 id="ruflo-completion-title" className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
               Cleanup Complete
             </h3>
             <p className="text-sm mb-1" style={{ color: 'var(--text-secondary)' }}>
@@ -68,15 +70,15 @@ export function RufloDeprecationModal({ onClose }: RufloDeprecationModalProps) {
             </button>
           </div>
         </div>
-      </div>
+      </ModalShell>
     );
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={() => !isPending && onClose()}
+    <ModalShell
+      onClose={() => !isPending && onClose()}
+      labelledBy="ruflo-modal-title"
+      dismissOnBackdrop={!isPending}
     >
       <div
         className="flex flex-col rounded-xl shadow-2xl overflow-hidden"
@@ -86,7 +88,6 @@ export function RufloDeprecationModal({ onClose }: RufloDeprecationModalProps) {
           background: 'var(--bg-secondary)',
           border: '1px solid var(--border)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
@@ -96,7 +97,7 @@ export function RufloDeprecationModal({ onClose }: RufloDeprecationModalProps) {
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-6 h-6 shrink-0" style={{ color: '#ef4444' }} />
             <div>
-              <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <h3 id="ruflo-modal-title" className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Remove RuFlo
               </h3>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
@@ -234,6 +235,6 @@ export function RufloDeprecationModal({ onClose }: RufloDeprecationModalProps) {
           )}
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

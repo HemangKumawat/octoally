@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useId } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { ModalShell } from './ModalShell';
 
 interface ConfirmModalProps {
   title: string;
@@ -23,24 +24,16 @@ export function ConfirmModal({
   children,
 }: ConfirmModalProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     cancelRef.current?.focus();
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onCancel]);
+  }, []);
 
   const confirmColor = variant === 'danger' ? '#ef4444' : '#f59e0b';
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={onCancel}
-    >
+    <ModalShell onClose={onCancel} labelledBy={titleId}>
       <div
         className="flex flex-col rounded-lg shadow-2xl overflow-hidden"
         style={{
@@ -59,7 +52,7 @@ export function ConfirmModal({
           >
             <AlertTriangle className="w-5 h-5" style={{ color: confirmColor }} />
           </div>
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <h3 id={titleId} className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
             {title}
           </h3>
         </div>
@@ -102,6 +95,6 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

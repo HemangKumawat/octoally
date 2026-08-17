@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { BarChart3, Download, X, Loader2, CheckCircle } from 'lucide-react';
+import { ModalShell } from './ModalShell';
 
 interface StatuslinePromptModalProps {
   onClose: () => void;
@@ -36,21 +37,23 @@ export function StatuslinePromptModal({ onClose }: StatuslinePromptModalProps) {
 
   const isPending = installMutation.isPending || skipMutation.isPending;
 
-  if (done) {
-    return (
+  return (
+    <ModalShell
+      onClose={onClose}
+      labelledBy="statusline-modal-title"
+      dismissOnBackdrop={!isPending}
+      className="flex flex-col rounded-xl shadow-2xl overflow-hidden"
+    >
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center"
-        style={{ background: 'rgba(0,0,0,0.6)' }}
+        className="flex flex-col rounded-xl shadow-2xl overflow-hidden"
+        style={{
+          width: '100%',
+          maxWidth: '460px',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+        }}
       >
-        <div
-          className="flex flex-col rounded-xl shadow-2xl overflow-hidden"
-          style={{
-            width: '100%',
-            maxWidth: '460px',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border)',
-          }}
-        >
+        {done ? (
           <div className="px-6 py-8 text-center">
             <CheckCircle className="w-12 h-12 mx-auto mb-4" style={{ color: '#22c55e' }} />
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
@@ -72,104 +75,88 @@ export function StatuslinePromptModal({ onClose }: StatuslinePromptModalProps) {
               Done
             </button>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={() => !isPending && skipMutation.mutate()}
-    >
-      <div
-        className="flex flex-col rounded-xl shadow-2xl overflow-hidden"
-        style={{
-          width: '100%',
-          maxWidth: '460px',
-          background: 'var(--bg-secondary)',
-          border: '1px solid var(--border)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div
-          className="px-6 py-4"
-          style={{ background: '#06b6d415', borderBottom: '1px solid #06b6d440' }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <BarChart3 className="w-6 h-6 shrink-0" style={{ color: '#06b6d4' }} />
-              <div>
-                <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  Custom Claude Status Bar
-                </h3>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                  Enhance your Claude Code experience
-                </p>
+        ) : (
+          <>
+            {/* Header */}
+            <div
+              className="px-6 py-4"
+              style={{ background: '#06b6d415', borderBottom: '1px solid #06b6d440' }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <BarChart3 className="w-6 h-6 shrink-0" style={{ color: '#06b6d4' }} />
+                  <div>
+                    <h3 id="statusline-modal-title" className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      Custom Claude Status Bar
+                    </h3>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      Enhance your Claude Code experience
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => !isPending && skipMutation.mutate()}
+                  className="p-1 rounded-md transition-colors hover:opacity-80"
+                  style={{ color: 'var(--text-secondary)' }}
+                  aria-label="Close status bar prompt"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
-            <button
-              onClick={() => !isPending && skipMutation.mutate()}
-              className="p-1 rounded-md transition-colors hover:opacity-80"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            OctoAlly includes a custom status bar for Claude Code that shows useful info at a glance:
-          </p>
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                OctoAlly includes a custom status bar for Claude Code that shows useful info at a glance:
+              </p>
 
-          <div className="space-y-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
-              <span style={{ color: '#a855f7' }}>&#xE0A0;</span>
-              <span>Current <strong>git branch</strong></span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
-              <span style={{ color: '#06b6d4' }}>&#x23F1;</span>
-              <span><strong>Session duration</strong> and lines changed</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
-              <span style={{ color: '#22c55e' }}>&#x2593;</span>
-              <span>Color-coded <strong>context window</strong> usage bar</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
-              <span style={{ color: '#eab308' }}>$</span>
-              <span><strong>Session cost</strong> and model indicator</span>
-            </div>
-          </div>
+              <div className="space-y-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
+                  <span style={{ color: '#a855f7' }}>&#xE0A0;</span>
+                  <span>Current <strong>git branch</strong></span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
+                  <span style={{ color: '#06b6d4' }}>&#x23F1;</span>
+                  <span><strong>Session duration</strong> and lines changed</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
+                  <span style={{ color: '#22c55e' }}>&#x2593;</span>
+                  <span>Color-coded <strong>context window</strong> usage bar</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
+                  <span style={{ color: '#eab308' }}>$</span>
+                  <span><strong>Session cost</strong> and model indicator</span>
+                </div>
+              </div>
 
-          <div className="flex flex-col gap-2 pt-2">
-            <button
-              onClick={() => installMutation.mutate()}
-              disabled={isPending}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium"
-              style={{ background: '#06b6d4', color: 'white', opacity: isPending ? 0.6 : 1 }}
-            >
-              {installMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {installMutation.isPending ? 'Installing...' : 'Install Status Bar'}
-            </button>
-            <button
-              onClick={() => skipMutation.mutate()}
-              disabled={isPending}
-              className="w-full px-4 py-2.5 rounded-lg text-xs font-medium"
-              style={{ background: 'var(--bg-primary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-            >
-              No thanks
-            </button>
-          </div>
-        </div>
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  onClick={() => installMutation.mutate()}
+                  disabled={isPending}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium"
+                  style={{ background: '#06b6d4', color: 'white', opacity: isPending ? 0.6 : 1 }}
+                >
+                  {installMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  {installMutation.isPending ? 'Installing...' : 'Install Status Bar'}
+                </button>
+                <button
+                  onClick={() => skipMutation.mutate()}
+                  disabled={isPending}
+                  className="w-full px-4 py-2.5 rounded-lg text-xs font-medium"
+                  style={{ background: 'var(--bg-primary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+                >
+                  No thanks
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
-    </div>
+    </ModalShell>
   );
 }

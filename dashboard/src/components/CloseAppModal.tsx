@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useId, useState } from 'react';
 import { Monitor, Power, PowerOff } from 'lucide-react';
+import { ModalShell } from './ModalShell';
 
 interface CloseAppModalProps {
   onChoice: (choice: 'minimize' | 'quit' | 'quit-all' | 'cancel', remember: boolean) => void;
@@ -7,20 +8,13 @@ interface CloseAppModalProps {
 
 export function CloseAppModal({ onChoice }: CloseAppModalProps) {
   const [remember, setRemember] = useState(false);
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onChoice('cancel', false);
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onChoice]);
+  const titleId = useId();
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={() => onChoice('cancel', false)}
+    <ModalShell
+      onClose={() => onChoice('cancel', false)}
+      labelledBy={titleId}
+      className="flex flex-col rounded-lg shadow-2xl overflow-hidden [&_button]:outline-none [&_button:focus]:outline-none"
     >
       <div
         className="flex flex-col rounded-lg shadow-2xl overflow-hidden [&_button]:outline-none [&_button:focus]:outline-none"
@@ -30,7 +24,6 @@ export function CloseAppModal({ onChoice }: CloseAppModalProps) {
           background: 'var(--bg-primary)',
           border: '1px solid var(--border)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header with logo */}
         <div className="flex flex-col items-center gap-2 px-6 pt-6 pb-2">
@@ -40,6 +33,7 @@ export function CloseAppModal({ onChoice }: CloseAppModalProps) {
             className="w-12 h-12 object-contain"
           />
           <h3
+            id={titleId}
             className="text-sm font-semibold"
             style={{ color: 'var(--text-primary)' }}
           >
@@ -156,6 +150,6 @@ export function CloseAppModal({ onChoice }: CloseAppModalProps) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

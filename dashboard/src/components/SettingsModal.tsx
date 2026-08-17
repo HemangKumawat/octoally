@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { X, Settings, Check, Loader2, Zap, Bot, Type, Globe, RotateCcw, BarChart3, Download, Trash2, Keyboard } from 'lucide-react';
 import { ClaudeIcon, CodexIcon } from './CliIcons';
 import { Skeleton } from './Skeleton';
+import { ModalShell } from './ModalShell';
 import {
   ACTIONS,
   type ActionDef,
@@ -94,18 +95,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   }, [data]);
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
     // Suspend global shortcuts while the modal is open so binding captures
     // (and typing in inputs) don't fire navigation actions in the background.
     const release = pushSuspend();
     return () => {
-      window.removeEventListener('keydown', handleKey);
       release();
     };
-  }, [onClose]);
+  }, []);
 
   const mutation = useMutation({
     mutationFn: (settings: Record<string, string>) => api.settings.update(settings),
@@ -130,10 +126,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={onClose}
+    <ModalShell
+      onClose={onClose}
+      labelledBy="settings-modal-title"
+      dismissOnBackdrop={true}
     >
       <div
         className="flex flex-col rounded-xl shadow-2xl overflow-hidden"
@@ -144,7 +140,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           background: 'var(--bg-secondary)',
           border: '1px solid var(--border)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
@@ -153,7 +148,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         >
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5" style={{ color: 'var(--accent)' }} />
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <h3 id="settings-modal-title" className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
               Settings
             </h3>
           </div>
@@ -540,7 +535,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 

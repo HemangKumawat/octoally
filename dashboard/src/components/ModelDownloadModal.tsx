@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState, useId } from 'react';
 import { Download, X, Mic } from 'lucide-react';
 import { useSpeechStore, downloadModel } from '../lib/speech';
+import { ModalShell } from './ModalShell';
 
 const MODEL_OPTIONS = [
   {
@@ -32,18 +33,7 @@ export function ModelDownloadModal() {
 
   const [selectedModel, setSelectedModel] = useState('small');
   const isDownloading = downloadProgress !== null;
-
-  useEffect(() => {
-    if (!showDownloadModal) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isDownloading) {
-        setShowDownloadModal(false);
-        setError(null);
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [showDownloadModal, isDownloading, setShowDownloadModal, setError]);
+  const titleId = useId();
 
   if (!showDownloadModal) return null;
 
@@ -60,10 +50,11 @@ export function ModelDownloadModal() {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={handleCancel}
+    <ModalShell
+      onClose={handleCancel}
+      labelledBy={titleId}
+      dismissOnBackdrop={!isDownloading}
+      className="flex flex-col rounded-lg shadow-2xl overflow-hidden"
     >
       <div
         className="flex flex-col rounded-lg shadow-2xl overflow-hidden"
@@ -73,7 +64,6 @@ export function ModelDownloadModal() {
           background: 'var(--bg-primary)',
           border: '1px solid var(--border)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
@@ -84,7 +74,11 @@ export function ModelDownloadModal() {
             >
               <Mic className="w-5 h-5" style={{ color: 'var(--accent)' }} />
             </div>
-            <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <h3
+              id={titleId}
+              className="text-sm font-semibold"
+              style={{ color: 'var(--text-primary)' }}
+            >
               Speech Recognition Setup
             </h3>
           </div>
@@ -211,6 +205,6 @@ export function ModelDownloadModal() {
           </div>
         )}
       </div>
-    </div>
+    </ModalShell>
   );
 }

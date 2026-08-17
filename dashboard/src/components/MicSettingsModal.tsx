@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Settings, Mic, RefreshCw, X, ChevronDown, Volume2 } from 'lucide-react';
 import { invoke } from '../lib/tauri';
 import { isAudioCuesEnabled, setAudioCuesEnabled } from '../lib/audio-cues';
+import { ModalShell } from './ModalShell';
 
 interface AudioDevice {
   name: string;
@@ -87,6 +88,7 @@ function DeviceOption({
 }
 
 export function MicSettingsModal({ onClose }: MicSettingsModalProps) {
+  const titleId = useId();
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,12 +118,7 @@ export function MicSettingsModal({ onClose }: MicSettingsModalProps) {
 
   useEffect(() => {
     loadDevices();
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -145,10 +142,10 @@ export function MicSettingsModal({ onClose }: MicSettingsModalProps) {
   const selectedInAdvanced = advanced.some((d) => d.name === selectedDevice);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={onClose}
+    <ModalShell
+      onClose={onClose}
+      labelledBy={titleId}
+      dismissOnBackdrop={!loading && !saving}
     >
       <div
         className="flex flex-col rounded-lg shadow-2xl overflow-hidden"
@@ -158,7 +155,6 @@ export function MicSettingsModal({ onClose }: MicSettingsModalProps) {
           background: 'var(--bg-primary)',
           border: '1px solid var(--border)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
@@ -170,6 +166,7 @@ export function MicSettingsModal({ onClose }: MicSettingsModalProps) {
               <Settings className="w-5 h-5" style={{ color: 'var(--accent)' }} />
             </div>
             <h3
+              id={titleId}
               className="text-sm font-semibold"
               style={{ color: 'var(--text-primary)' }}
             >
@@ -347,6 +344,6 @@ export function MicSettingsModal({ onClose }: MicSettingsModalProps) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

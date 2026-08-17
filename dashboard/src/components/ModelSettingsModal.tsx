@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useId } from 'react';
 import { Settings, Download, Check, Loader2, X, Cloud, HardDrive, Eye, EyeOff, Ear, Plus, Trash2, Sparkles, Timer, Clock } from 'lucide-react';
 import { invoke } from '../lib/tauri';
 import { useSpeechStore, downloadModel, stopMic, unloadModel, setWakePhrase, setSilenceTimeout, setMaxSpeechDuration } from '../lib/speech';
+import { ModalShell } from './ModalShell';
 
 interface ModelInfo {
   installed: boolean;
@@ -63,6 +64,7 @@ export function ModelSettingsModal({ onClose }: ModelSettingsModalProps) {
   const [draftMaxSpeech, setDraftMaxSpeech] = useState(committedMaxSpeech.current);
   const [showApiKey, setShowApiKey] = useState(false);
   const [activeTab, setActiveTab] = useState<'speech' | 'commands'>('speech');
+  const titleId = useId();
 
   // Has the user changed anything?
   const hasChanges = draftBackend !== committedBackend.current
@@ -84,23 +86,6 @@ export function ModelSettingsModal({ onClose }: ModelSettingsModalProps) {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadModels();
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !downloadingModel) handleCancel();
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose, downloadingModel]);
-
-  // Refresh model list when download completes
-  useEffect(() => {
-    if (downloadProgress === null && downloadingModel) {
-      setDownloadingModel(null);
-      loadModels();
-    }
-  }, [downloadProgress, downloadingModel]);
 
   const handleActivate = async (modelSize: string) => {
     setSwitching(true);
@@ -195,11 +180,25 @@ export function ModelSettingsModal({ onClose }: ModelSettingsModalProps) {
 
   const isDownloading = downloadProgress !== null;
 
+  // Load models on mount
+  useEffect(() => {
+    loadModels();
+  }, []);
+
+  // Refresh model list when download completes
+  useEffect(() => {
+    if (downloadProgress === null && downloadingModel) {
+      setDownloadingModel(null);
+      loadModels();
+    }
+  }, [downloadProgress, downloadingModel]);
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={() => !isDownloading && handleCancel()}
+    <ModalShell
+      onClose={handleCancel}
+      labelledBy={titleId}
+      dismissOnBackdrop={!isDownloading}
+      className="flex flex-col rounded-lg shadow-2xl overflow-hidden"
     >
       <div
         className="flex flex-col rounded-lg shadow-2xl overflow-hidden"
@@ -209,7 +208,6 @@ export function ModelSettingsModal({ onClose }: ModelSettingsModalProps) {
           background: 'var(--bg-primary)',
           border: '1px solid var(--border)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
@@ -222,6 +220,7 @@ export function ModelSettingsModal({ onClose }: ModelSettingsModalProps) {
             </div>
             <div>
               <h3
+                id={titleId}
                 className="text-sm font-semibold"
                 style={{ color: 'var(--text-primary)' }}
               >
@@ -787,7 +786,7 @@ export function ModelSettingsModal({ onClose }: ModelSettingsModalProps) {
           )}
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 

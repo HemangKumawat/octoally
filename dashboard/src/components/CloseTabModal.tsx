@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AlertTriangle, EyeOff, Trash2 } from 'lucide-react';
 import { pushSuspend } from '../lib/shortcuts';
+import { ModalShell } from './ModalShell';
 
 interface CloseTabModalProps {
   /** e.g. "Session 1", "Terminal 2" */
@@ -31,18 +32,13 @@ export function CloseTabModal({
     // Default focus on Cancel — Enter on a destructive action is too easy to
     // trigger accidentally when the modal pops up from a stray shortcut.
     cancelRef.current?.focus();
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
-    };
-    window.addEventListener('keydown', handleKey);
     // Suspend global shortcuts while the confirm is open so the same key
     // that opened this modal (e.g. Ctrl+Shift+X) can't re-trigger it.
     const release = pushSuspend();
     return () => {
-      window.removeEventListener('keydown', handleKey);
       release();
     };
-  }, [onCancel]);
+  }, []);
 
   const isProject = type === 'project';
   const typeLabel = type;
@@ -52,10 +48,10 @@ export function CloseTabModal({
     : `"${label}" is still running. You can hide the tab (the ${typeLabel} keeps running in the background) or close and kill the process.`;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={onCancel}
+    <ModalShell
+      onClose={onCancel}
+      labelledBy="close-tab-modal-title"
+      dismissOnBackdrop={true}
     >
       <div
         className="flex flex-col rounded-lg shadow-2xl overflow-hidden"
@@ -65,7 +61,6 @@ export function CloseTabModal({
           background: 'var(--bg-primary)',
           border: '1px solid var(--border)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-5 pt-5 pb-2">
@@ -75,7 +70,7 @@ export function CloseTabModal({
           >
             <AlertTriangle className="w-5 h-5" style={{ color: '#f59e0b' }} />
           </div>
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <h3 id="close-tab-modal-title" className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
             Close {isProject ? 'Project Tab' : `${label}`}
           </h3>
         </div>
@@ -130,6 +125,6 @@ export function CloseTabModal({
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
