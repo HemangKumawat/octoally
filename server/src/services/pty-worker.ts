@@ -16,6 +16,7 @@ import { existsSync, unlinkSync, mkdirSync, createReadStream, readFileSync, read
 import { join } from 'path';
 import { homedir, tmpdir } from 'os';
 import type { ReadStream } from 'fs';
+import { applyOctoallyTmuxProfile, writeOctoallyTmuxConf } from './tmux-profile.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -25,10 +26,11 @@ const execFileAsync = promisify(execFile);
  *  - PORT / OCTOALLY_*_PORT: prevents sandbox port assignments from overriding
  *    child project .env files (dotenv won't override existing env vars) */
 function sessionEnv(): Record<string, string> {
-  const { NODE_ENV, PORT, OCTOALLY_API_PORT, OCTOALLY_DASH_PORT, ...rest } = process.env;
+  const { NODE_ENV, PORT, OCTOALLY_API_PORT, OCTOALLY_DASH_PORT, NO_COLOR, ...rest } = process.env;
   return {
     ...rest,
     TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
     OCTOALLY_SESSION: '1',
     HEADLESS_WORKERS_DISABLED: '1',
     // REVERTED 2026-07-11: CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 (added
@@ -37,6 +39,8 @@ function sessionEnv(): Record<string, string> {
     // so under heavy output the input bar overdraws the transcript and the
     // cursor lands mid-text (screenshot-confirmed). Stable typing > drag-copy;
     // transcript copy paths remain: /export, tmux capture-pane, term-mirror.
+    // 2026-08-21: also do not inherit NO_COLOR from agent/CI parents — Grok
+    // doctor treats that as "color none" and the TUI looks washed out.
   };
 }
 
@@ -143,13 +147,17 @@ async function tmuxCreate(
   // server ignores the client env, so this is the deterministic path.
   // (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 removed 2026-07-11 — broke the
   // composer; see sessionEnv comment. -u strips it from inherited tmux env.)
-  const envArgs = ['-u', 'NODE_ENV', '-u', 'PORT', '-u', 'OCTOALLY_API_PORT', '-u', 'OCTOALLY_DASH_PORT', '-u', 'CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN'];
+  const envArgs = ['-u', 'NODE_ENV', '-u', 'PORT', '-u', 'OCTOALLY_API_PORT', '-u', 'OCTOALLY_DASH_PORT', '-u', 'CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN', '-u', 'NO_COLOR'];
   const runArgs = command
     ? [envCmd, ...envArgs, shell, '-i', '-c', `${command}; exec ${shell} -i`]
     : [envCmd, ...envArgs, shell, '-i'];
 
+  // -f isolates this socket from ~/.tmux.conf (which currently disables
+  // alternate-screen). Ignored if the octoally server is already running;
+  // applyOctoallyTmuxProfile() then repairs live options.
+  const tmuxConf = writeOctoallyTmuxConf();
   await execFileAsync('tmux', [
-    ...tmuxBaseArgs, 'new-session', '-d', '-s', name,
+    ...tmuxBaseArgs, '-f', tmuxConf, 'new-session', '-d', '-s', name,
     '-x', String(cols), '-y', String(rows),
     ...runArgs,
   ], {
@@ -158,15 +166,13 @@ async function tmuxCreate(
   });
 
   // Strip server-specific vars from tmux global env for any future windows/panes
-  for (const varName of ['NODE_ENV', 'PORT', 'OCTOALLY_API_PORT', 'OCTOALLY_DASH_PORT']) {
+  for (const varName of ['NODE_ENV', 'PORT', 'OCTOALLY_API_PORT', 'OCTOALLY_DASH_PORT', 'NO_COLOR']) {
     await execFileAsync('tmux', [...tmuxBaseArgs, 'set-environment', '-g', '-u', varName]).catch(() => {});
   }
 
-  try {
-    await execFileAsync('tmux', [...tmuxBaseArgs, 'set-option', '-s', 'terminal-overrides', 'xterm-256color:smcup@:rmcup@']);
-    await execFileAsync('tmux', [...tmuxBaseArgs, 'set-option', '-t', name, 'status', 'off']);
-    await execFileAsync('tmux', [...tmuxBaseArgs, 'set-option', '-t', name, 'history-limit', '50000']);
-  } catch { /* best effort */ }
+  await applyOctoallyTmuxProfile({ sessionName: name }).catch((err) => {
+    console.error(`[PTY-WORKER] tmux profile apply failed for ${name}:`, err instanceof Error ? err.message : err);
+  });
 }
 
 async function tmuxKill(sessionId: string): Promise<void> {

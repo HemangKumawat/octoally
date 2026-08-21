@@ -358,6 +358,36 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
     };
     pasteTarget.addEventListener('paste', pasteHandler, { capture: true });
 
+    // Two-finger / wheel scroll for agent TUIs launched as sessions (hideCursor).
+    // Never send SGR mouse ticks — those leak into the prompt as junk when the
+    // composer is focused. PageUp/PageDown is what Grok documents for scrolling
+    // while the prompt is focused. Raw Terminals (Launch Terminal, including
+    // grok typed at a shell) keep xterm mouse reporting so the app can consume
+    // the wheel itself once tmux alternate-screen is on. Do not intercept those.
+    let wheelAcc = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;
+      if (!hideCursorRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const w = wsRef.current;
+      if (!w || w.readyState !== WebSocket.OPEN) return;
+      let dy = e.deltaY;
+      if (e.deltaMode === 1) dy *= 16;
+      if (e.deltaMode === 2) dy *= 400;
+      wheelAcc += dy;
+      const step = 48;
+      while (wheelAcc >= step) {
+        w.send(JSON.stringify({ type: 'input', data: '\x1b[6~' }));
+        wheelAcc -= step;
+      }
+      while (wheelAcc <= -step) {
+        w.send(JSON.stringify({ type: 'input', data: '\x1b[5~' }));
+        wheelAcc += step;
+      }
+    };
+    containerRef.current.addEventListener('wheel', onWheel, { passive: false, capture: true });
+
     termRef.current = term;
     fitRef.current = fitAddon;
 
@@ -656,6 +686,7 @@ export function Terminal({ sessionId, visible = true, suspended = false, passive
       webglRef.current = null;
       resizeObserver.disconnect();
       pasteTarget.removeEventListener('paste', pasteHandler, { capture: true } as EventListenerOptions);
+      containerRef.current?.removeEventListener('wheel', onWheel, { capture: true } as EventListenerOptions);
       wsRef.current?.close();
       osc52.dispose();
       term.dispose();

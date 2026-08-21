@@ -39,6 +39,7 @@ import {
 } from '@trpc/server/adapters/fastify';
 import type { AppRouter } from './trpc/router.js';
 import { killAllSessions, killAllSessionsSync, cleanupStaleRunningSessions, autoReconnectDetachedSessions, getReconnectStatus, startPendingSessionWatchdog, startStaleRunningReconciler } from './services/session-manager.js';
+import { applyOctoallyTmuxProfile, writeOctoallyTmuxConf } from './services/tmux-profile.js';
 import { config } from './config.js';
 import { appendFileSync, writeFileSync, readdirSync, existsSync, readFileSync, rmSync, mkdirSync } from 'fs';
 import { join } from 'path';
@@ -159,6 +160,17 @@ async function start() {
   // before WebSocket connected, or spawn command hangs on registry check/npm install)
   startPendingSessionWatchdog();
   startStaleRunningReconciler();
+
+  // Repair the long-lived `tmux -L octoally` server. systemd KillMode=process
+  // keeps that socket across node restarts, so a profile that only ran at
+  // new-session would leave Grok/Claude sessions on the old alt-screen-off
+  // options forever. Failure is logged, never silent.
+  try { writeOctoallyTmuxConf(); } catch (err) {
+    console.error('Failed to write octoally tmux.conf:', err);
+  }
+  applyOctoallyTmuxProfile().catch((err) => {
+    console.error('Failed to apply octoally tmux profile:', err);
+  });
 
   // Plugins
   await app.register(cors, {
